@@ -27,6 +27,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <err.h>
+#include <errno.h>
+#include <sys/select.h>
 #include "libdsbmc/libdsbmc.h"
 
 static void list(void);
@@ -34,18 +36,21 @@ static void usage(void);
 static void spinner(void);
 static void cb(int code, const dsbmc_dev_t *d);
 static void size_cb(int code, const dsbmc_dev_t *d);
+static void automount(void);
 
 int
 main(int argc, char *argv[])
 {
 	int	      i, ch, speed;
-	bool	      mflag, uflag, lflag, sflag, vflag, eflag;
-	dsbmc_dev_t   *dev, **devlist;
+	bool	      aflag, mflag, uflag, lflag, sflag, vflag, eflag;
 	dsbmc_event_t e;
+	const dsbmc_dev_t *dev, **devlist;
 
-	eflag = mflag = uflag = lflag = sflag = vflag = false;
-	while ((ch = getopt(argc, argv, "musehv:l")) != -1) {
+	aflag = eflag = mflag = uflag = lflag = sflag = vflag = false;
+	while ((ch = getopt(argc, argv, "amusehv:l")) != -1) {
 		switch (ch) {
+		case 'a':
+			aflag = true;
 		case 'm':
 			mflag = true;
 			break;
@@ -78,6 +83,8 @@ main(int argc, char *argv[])
 		errx(EXIT_FAILURE, "%s", dsbmc_errstr());
 	if (lflag)
 		list();
+	else if (aflag)
+		automount();
 	else if (argc < 1)
 		usage();
 	if (sflag || mflag || uflag || eflag || vflag) {
@@ -148,7 +155,7 @@ static void
 list()
 {
 	int i;
-	dsbmc_dev_t **devlist;
+	const dsbmc_dev_t **devlist;
 
 	for (i = 0; i < dsbmc_get_devlist(&devlist); i++) {
 		(void)printf("dev=%s", devlist[i]->dev);
@@ -164,11 +171,52 @@ list()
 }
 
 static void
+automount()
+{
+	int	      fd, ret;
+	fd_set	      fdset;
+	dsbmc_event_t e;
+
+	for (fd = dsbmc_get_fd();;) {
+		FD_ZERO(&fdset); FD_SET(fd, &fdset);
+		if (select(fd + 1, &fdset, 0, 0, 0) == -1) {
+			if (errno != EINTR)
+				err(EXIT_FAILURE, "select()");
+			continue;
+		}
+		while (dsbmc_fetch_event(&e) > 0) {
+			if (e.type == DSBMC_EVENT_ADD_DEVICE) {
+				if ((ret = dsbmc_mount(e.dev)) == -1) {
+					warnx("Error: dsbmc_mount(%s): %s",
+					    e.dev->dev, dsbmc_errstr());
+				} else if (ret > 0) {
+					warnx("Mouting of %s failed: %s",
+					    e.dev->dev,
+					    dsbmc_errcode_to_str(ret));
+				}
+			} else if (e.type == DSBMC_EVENT_DEL_DEVICE)
+				dsbmc_free_dev(e.dev);
+		}
+		if (dsbmc_get_err(NULL) & DSBMC_ERR_LOST_CONNECTION)
+			errx(EXIT_FAILURE, "%s", dsbmc_errstr());
+	}
+}
+
+static void
 usage()
 {
-	(void)fprintf(stderr, "Usage: dsbmc-cli -m|-u|-e|-s dev\n" \
-			      "       dsbmc-cli -v speed dev\n" \
-			      "       dsbmc-cli -l\n");
+	(void)fprintf(stderr, "Usage: dsbmc-cli -m|-u|-e|-s dev\n" 	\
+			      "       dsbmc-cli -v speed dev\n" 	\
+			      "       dsbmc-cli -l\n" 			\
+			      "       dsbmc-cli -a\n\n"			\
+			      "Flags:\n"				\
+			      "-m     Mount device\n"			\
+			      "-u     Unmount device\n"			\
+			      "-e     Eject device\n"			\
+			      "-s     Query storage capacity\n"		\
+			      "-v     Set CD/DVD reading speed\n"	\
+			      "-l     List devices\n"			\
+			      "-a     Automount\n");
 	exit(EXIT_FAILURE);
 }
 
