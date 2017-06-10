@@ -3,23 +3,25 @@
 dsbmc-cli is a simple command-line client for DSBMD. It's basically a test for
 libdsbmc.
 
- 			       COMPILING
+ 			       INSTALLATION
 
-$ git clone https://github.com/mrclksr/dsbmc-cli.git
-$ git clone https://github.com/mrclksr/libdsbmc.git
-$ cd dsbmc-cli && make
+# git clone https://github.com/mrclksr/dsbmc-cli.git
+# git clone https://github.com/mrclksr/libdsbmc.git
+# cd dsbmc-cli && make install
 
 				USAGE
 
 Usage: dsbmc-cli -m|-u|-e|-s dev
        dsbmc-cli -v speed dev
        dsbmc-cli -l
+       dsbmc-cli -a
 
-Flags
--m	Mount
--u	Unmount
--v	Set CD/DVD reading speed
--e	Eject media
--s	Query media size.
--l	List available devices.
+Flags:
+-m     Mount device
+-u     Unmount device
+-e     Eject device
+-s     Query storage capacity
+-v     Set CD/DVD reading speed
+-l     List devices
+-a     Automount
 
