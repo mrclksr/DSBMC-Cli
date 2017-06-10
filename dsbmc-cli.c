@@ -31,12 +31,19 @@
 #include <sys/select.h>
 #include "libdsbmc/libdsbmc.h"
 
+#define EXEC(f)							  \
+	do {							  \
+		if (f == -1)					  \
+			errx(EXIT_FAILURE, "%s", dsbmc_errstr()); \
+	} while (0)
+
 static void list(void);
 static void usage(void);
 static void spinner(void);
+static void automount(void);
+static void do_mount(const dsbmc_dev_t *dev);
 static void cb(int code, const dsbmc_dev_t *d);
 static void size_cb(int code, const dsbmc_dev_t *d);
-static void automount(void);
 
 int
 main(int argc, char *argv[])
@@ -96,23 +103,17 @@ main(int argc, char *argv[])
 		if (dev == NULL)
 			errx(EXIT_FAILURE, "No such device '%s'", argv[0]);
 	}
-	if (mflag) {
-		if (dsbmc_mount_async(dev, cb) == -1)
-			errx(EXIT_FAILURE, "%s", dsbmc_errstr());
-	} else if (sflag) {
-		if (dsbmc_size_async(dev, size_cb) == -1)
-			errx(EXIT_FAILURE, "%s", dsbmc_errstr());
-	} else if (uflag) {
-		if (dsbmc_unmount_async(dev, cb) == -1)
-			errx(EXIT_FAILURE, "%s", dsbmc_errstr());
-	} else if (eflag) {
-		if (dsbmc_eject_async(dev, cb) == -1)
-			errx(EXIT_FAILURE, "%s", dsbmc_errstr());
-	} else if (vflag) {
-		if (dsbmc_set_speed_async(dev, speed, cb) == -1)
-			errx(EXIT_FAILURE, "%s", dsbmc_errstr());
-		return (EXIT_FAILURE);
-	} else
+	if (mflag)
+		EXEC(dsbmc_mount_async(dev, cb));
+	else if (sflag)
+		EXEC(dsbmc_size_async(dev, size_cb));
+	else if (uflag)
+		EXEC(dsbmc_unmount_async(dev, cb));
+	else if (eflag)
+		EXEC(dsbmc_eject_async(dev, cb));
+	else if (vflag)
+		EXEC(dsbmc_set_speed_async(dev, speed, cb));
+	else
 		usage();
 	for (; dsbmc_fetch_event(&e) != -1; usleep(500))
 		spinner();
@@ -171,30 +172,43 @@ list()
 }
 
 static void
+do_mount(const dsbmc_dev_t *dev)
+{
+	int ret;
+
+	if ((ret = dsbmc_mount(dev)) == -1) {
+		warnx("Error: dsbmc_mount(%s): %s", dev->dev,
+		    dsbmc_errstr());
+	} else if (ret > 0) {
+		warnx("Mouting of %s failed: %s", dev->dev,
+		    dsbmc_errcode_to_str(ret));
+	}
+}
+
+static void
 automount()
 {
-	int	      fd, ret;
+	int	      i, fd;
 	fd_set	      fdset;
 	dsbmc_event_t e;
-
+	const dsbmc_dev_t **devlist;
+	
+	for (i = 0; i < dsbmc_get_devlist(&devlist); i++) {
+		if (!devlist[i]->mounted)
+			do_mount(devlist[i]);
+	}
 	for (fd = dsbmc_get_fd();;) {
 		FD_ZERO(&fdset); FD_SET(fd, &fdset);
+
 		if (select(fd + 1, &fdset, 0, 0, 0) == -1) {
 			if (errno != EINTR)
 				err(EXIT_FAILURE, "select()");
 			continue;
 		}
 		while (dsbmc_fetch_event(&e) > 0) {
-			if (e.type == DSBMC_EVENT_ADD_DEVICE) {
-				if ((ret = dsbmc_mount(e.dev)) == -1) {
-					warnx("Error: dsbmc_mount(%s): %s",
-					    e.dev->dev, dsbmc_errstr());
-				} else if (ret > 0) {
-					warnx("Mouting of %s failed: %s",
-					    e.dev->dev,
-					    dsbmc_errcode_to_str(ret));
-				}
-			} else if (e.type == DSBMC_EVENT_DEL_DEVICE)
+			if (e.type == DSBMC_EVENT_ADD_DEVICE)
+				do_mount(e.dev);
+			else if (e.type == DSBMC_EVENT_DEL_DEVICE)
 				dsbmc_free_dev(e.dev);
 		}
 		if (dsbmc_get_err(NULL) & DSBMC_ERR_LOST_CONNECTION)
