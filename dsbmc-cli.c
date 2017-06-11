@@ -31,10 +31,17 @@
 #include <sys/select.h>
 #include "libdsbmc/libdsbmc.h"
 
-#define EXEC(f)							  \
-	do {							  \
-		if (f == -1)					  \
-			errx(EXIT_FAILURE, "%s", dsbmc_errstr()); \
+#define EXEC(f)							  	\
+	do {								\
+		if (f == -1)					  	\
+			errx(EXIT_FAILURE, "%s", dsbmc_errstr());	\
+	} while (0)
+
+#define P(s, m)								\
+	do {								\
+		if (s->m != NULL)					\
+			printf("%s" #m"=%s",				\
+			    strcmp(#m, "dev") ? ":" : "", s->m);	\
 	} while (0)
 
 static void list(void);
@@ -158,15 +165,11 @@ list()
 	int i;
 	const dsbmc_dev_t **devlist;
 
-	for (i = 0; i < dsbmc_get_devlist(&devlist); i++) {
-		(void)printf("dev=%s", devlist[i]->dev);
-		if (devlist[i]->volid != NULL)
-			(void)printf(":volid=%s", devlist[i]->volid);
-		if (devlist[i]->fsname != NULL)
-			(void)printf(":fs=%s", devlist[i]->fsname);
-		if (devlist[i]->mntpt != NULL)
-			(void)printf(":mntpt=%s", devlist[i]->mntpt);
-		(void)putchar('\n');
+	for (i = 0; i < dsbmc_get_devlist(&devlist); putchar('\n'), i++) {
+		P(devlist[i], dev);
+		P(devlist[i], volid);
+		P(devlist[i], fsname);
+		P(devlist[i], mntpt);
 	}
 	exit(EXIT_SUCCESS);
 }
