@@ -26,10 +26,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <limits.h>
+#include <pwd.h>
 #include <err.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <sys/select.h>
 #include "libdsbmc/libdsbmc.h"
+
+#define PATH_LOCKF ".dsbmc-cli.lock"
 
 #define EXEC(f)							  	\
 	do {								\
@@ -191,19 +196,36 @@ do_mount(const dsbmc_dev_t *dev)
 static void
 automount()
 {
-	int	      i, fd;
+	int	      i, fd, s;
+	char	      path[_POSIX_PATH_MAX];
 	fd_set	      fdset;
 	dsbmc_event_t e;
+	struct passwd *pw;
 	const dsbmc_dev_t **devlist;
-	
+
+	if ((pw = getpwuid(getuid())) == NULL)
+		err(EXIT_FAILURE, "getpwuid()");
+	endpwent();
+
+	(void)snprintf(path, sizeof(path) - 1, "%s/%s", pw->pw_dir,
+	    PATH_LOCKF);
+
+	if ((fd = open(path, O_CREAT | O_WRONLY)) == -1)
+		err(EXIT_FAILURE, "Couldn't open/create %s", path);
+	if (lockf(fd, F_TLOCK, 0) == -1) {
+		if (errno != EAGAIN)
+			err(EXIT_FAILURE, "lockf()");
+		errx(EXIT_FAILURE, "Another instance of 'dsbmc-cli " \
+		    "-a' is already running.");
+	}
 	for (i = 0; i < dsbmc_get_devlist(&devlist); i++) {
 		if (!devlist[i]->mounted)
 			do_mount(devlist[i]);
 	}
-	for (fd = dsbmc_get_fd();;) {
-		FD_ZERO(&fdset); FD_SET(fd, &fdset);
+	for (s = dsbmc_get_fd();;) {
+		FD_ZERO(&fdset); FD_SET(s, &fdset);
 
-		if (select(fd + 1, &fdset, 0, 0, 0) == -1) {
+		if (select(s + 1, &fdset, 0, 0, 0) == -1) {
 			if (errno != EINTR)
 				err(EXIT_FAILURE, "select()");
 			continue;
