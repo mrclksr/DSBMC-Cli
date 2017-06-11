@@ -36,22 +36,18 @@
 
 #define PATH_LOCKF ".dsbmc-cli.lock"
 
-#define EXEC(f)							  	\
-	do {								\
-		if (f == -1)					  	\
-			errx(EXIT_FAILURE, "%s", dsbmc_errstr());	\
-	} while (0)
+#define EXEC(f)	do {							  \
+	if (f == -1)							  \
+		errx(EXIT_FAILURE, "%s", dsbmc_errstr());		  \
+} while (0)
 
-#define P(s, m)								\
-	do {								\
-		if (s->m != NULL)					\
-			printf("%s" #m"=%s",				\
-			    strcmp(#m, "dev") ? ":" : "", s->m);	\
-	} while (0)
+#define P(s, m)	do {							  \
+	if (s->m != NULL)						  \
+		printf("%s" #m"=%s", strcmp(#m, "dev") ? ":" : "", s->m); \
+} while (0)
 
 static void list(void);
 static void usage(void);
-static void spinner(void);
 static void automount(void);
 static void do_mount(const dsbmc_dev_t *dev);
 static void cb(int code, const dsbmc_dev_t *d);
@@ -62,6 +58,7 @@ main(int argc, char *argv[])
 {
 	int	      i, ch, speed;
 	bool	      aflag, mflag, uflag, lflag, sflag, vflag, eflag;
+	const char    seq[] = "-|/-\\|/";
 	dsbmc_event_t e;
 	const dsbmc_dev_t *dev, **devlist;
 
@@ -127,8 +124,10 @@ main(int argc, char *argv[])
 		EXEC(dsbmc_set_speed_async(dev, speed, cb));
 	else
 		usage();
-	for (; dsbmc_fetch_event(&e) != -1; usleep(500))
-		spinner();
+	for (; dsbmc_fetch_event(&e) != -1; usleep(500)) {
+		for (i = 0; i < sizeof(seq) - 1; i++)
+			(void)fprintf(stderr, "\r%c", seq[i]);
+	}
 	if (dsbmc_get_err(NULL))
 		errx(EXIT_FAILURE, "%s", dsbmc_errstr());
 	return (EXIT_SUCCESS);
@@ -152,16 +151,6 @@ size_cb(int code, const dsbmc_dev_t *d)
 	(void)printf("size=%lu:used=%lu:free=%lu\n", d->mediasize, d->used,
 	    d->free);
 	exit(EXIT_SUCCESS);
-}
-
-static void
-spinner()
-{
-	int	   i;
-	const char seq[] = "-|/-\\|/";
-
-	for (i = 0; i < sizeof(seq) - 1; i++)
-		(void)fprintf(stderr, "\r%c", seq[i]);
 }
 
 static void
