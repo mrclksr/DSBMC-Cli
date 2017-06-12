@@ -32,6 +32,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/select.h>
+#include <sys/stat.h>
 #include "libdsbmc/libdsbmc.h"
 
 #define PATH_LOCKF ".dsbmc-cli.lock"
@@ -52,6 +53,8 @@ static void automount(void);
 static void do_mount(const dsbmc_dev_t *dev);
 static void cb(int code, const dsbmc_dev_t *d);
 static void size_cb(int code, const dsbmc_dev_t *d);
+static void cleanpath(char *path);
+static const dsbmc_dev_t *dev_from_mnt(const char *mnt);
 
 int
 main(int argc, char *argv[])
@@ -59,8 +62,9 @@ main(int argc, char *argv[])
 	int	      i, ch, speed;
 	bool	      aflag, mflag, uflag, lflag, sflag, vflag, eflag;
 	const char    seq[] = "-|/-\\|/";
+	struct stat   sb;
 	dsbmc_event_t e;
-	const dsbmc_dev_t *dev, **devlist;
+	const dsbmc_dev_t *dev, **dls;
 
 	aflag = eflag = mflag = uflag = lflag = sflag = vflag = false;
 	while ((ch = getopt(argc, argv, "amusehv:l")) != -1) {
@@ -104,10 +108,25 @@ main(int argc, char *argv[])
 	else if (argc < 1)
 		usage();
 	if (sflag || mflag || uflag || eflag || vflag) {
-		for (i = 0, dev = NULL;
-		    i < dsbmc_get_devlist(&devlist) && dev == NULL; i++) {
-			if (strcmp(argv[0], devlist[i]->dev) == 0)
-				dev = devlist[i];
+		cleanpath(argv[0]);
+		if (stat(argv[0], &sb) == -1) {
+			err(EXIT_FAILURE, errno == ENOENT ? "%s: " : \
+			    "stat(%s)", argv[0]);
+		}
+		if (S_ISDIR(sb.st_mode) && (uflag || eflag)) {
+			if ((dev = dev_from_mnt(argv[0])) == NULL)
+				errx(EXIT_FAILURE, "Not a mount point");
+		} else if (S_ISDIR(sb.st_mode) && !(uflag || eflag)) {
+			warnx("%s is a directory", argv[0]);
+			usage();
+		} else if (!S_ISCHR(sb.st_mode)) {
+			warnx("%s is not a character special file", argv[0]);
+			usage();
+		} else
+			dev = NULL;
+		for (i = 0; i < dsbmc_get_devlist(&dls) && dev == NULL; i++) {
+			if (strcmp(argv[0], dls[i]->dev) == 0)
+				dev = dls[i];
 		}
 		if (dev == NULL)
 			errx(EXIT_FAILURE, "No such device '%s'", argv[0]);
@@ -131,6 +150,46 @@ main(int argc, char *argv[])
 	if (dsbmc_get_err(NULL))
 		errx(EXIT_FAILURE, "%s", dsbmc_errstr());
 	return (EXIT_SUCCESS);
+}
+
+static void
+cleanpath(char *path)
+{
+	int   i;
+	char *p;
+	size_t len = strlen(path);
+
+	while ((p = strchr(path++, '/')) != NULL) {
+		while (p[1] == '/') {
+			for (i = 0; i < len - (p - path); i++)
+				p[i] = p[i + 1];
+			p[--len] = 0;
+			path = p + 1;
+		}
+	}
+}
+
+static const dsbmc_dev_t *
+dev_from_mnt(const char *mnt)
+{
+	int   i;
+	char  rpath1[PATH_MAX], rpath2[PATH_MAX];
+	const dsbmc_dev_t **dls;
+
+	if (realpath(mnt, rpath1) == NULL) {
+		if (errno == ENOENT)
+			return (NULL);
+		err(EXIT_FAILURE, "realpath(%s)", mnt);
+	}
+	for (i = 0; i < dsbmc_get_devlist(&dls); i++) {
+		if (!dls[i]->mounted)
+			continue;
+		if (realpath(dls[i]->mntpt, rpath2) == NULL)
+			err(EXIT_FAILURE, "realpath(%s)", dls[i]->mntpt);
+		if (strcmp(rpath1, rpath2) == 0)
+			return (dls[i]);
+	}
+	return (NULL);
 }
 
 static void
@@ -186,11 +245,11 @@ static void
 automount()
 {
 	int	      i, fd, s;
-	char	      path[_POSIX_PATH_MAX];
+	char	      path[PATH_MAX];
 	fd_set	      fdset;
 	dsbmc_event_t e;
 	struct passwd *pw;
-	const dsbmc_dev_t **devlist;
+	const dsbmc_dev_t **dls;
 
 	if ((pw = getpwuid(getuid())) == NULL)
 		err(EXIT_FAILURE, "getpwuid()");
@@ -207,9 +266,9 @@ automount()
 		errx(EXIT_FAILURE, "Another instance of 'dsbmc-cli " \
 		    "-a' is already running.");
 	}
-	for (i = 0; i < dsbmc_get_devlist(&devlist); i++) {
-		if (!devlist[i]->mounted)
-			do_mount(devlist[i]);
+	for (i = 0; i < dsbmc_get_devlist(&dls); i++) {
+		if (!dls[i]->mounted)
+			do_mount(dls[i]);
 	}
 	for (s = dsbmc_get_fd();;) {
 		FD_ZERO(&fdset); FD_SET(s, &fdset);
@@ -234,6 +293,7 @@ static void
 usage()
 {
 	(void)fprintf(stderr, "Usage: dsbmc-cli -m|-u|-e|-s dev\n" 	\
+			      "       dsbmc-cli -u|-e dir\n"	 	\
 			      "       dsbmc-cli -v speed dev\n" 	\
 			      "       dsbmc-cli -l\n" 			\
 			      "       dsbmc-cli -a\n\n"			\
