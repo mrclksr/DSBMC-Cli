@@ -110,8 +110,8 @@ main(int argc, char *argv[])
 	if (sflag || mflag || uflag || eflag || vflag) {
 		cleanpath(argv[0]);
 		if (stat(argv[0], &sb) == -1) {
-			err(EXIT_FAILURE, errno == ENOENT ? "%s: " : \
-			    "stat(%s)", argv[0]);
+			err(EXIT_FAILURE, errno == ENOENT ? "%s" : "stat(%s)",
+			    argv[0]);
 		}
 		if (S_ISDIR(sb.st_mode) && (uflag || eflag)) {
 			if ((dev = dev_from_mnt(argv[0])) == NULL)
@@ -292,19 +292,19 @@ automount()
 static void
 usage()
 {
-	(void)fprintf(stderr, "Usage: dsbmc-cli -m|-u|-e|-s dev\n" 	\
-			      "       dsbmc-cli -u|-e dir\n"	 	\
-			      "       dsbmc-cli -v speed dev\n" 	\
-			      "       dsbmc-cli -l\n" 			\
-			      "       dsbmc-cli -a\n\n"			\
-			      "Flags:\n"				\
-			      "-m     Mount device\n"			\
-			      "-u     Unmount device\n"			\
-			      "-e     Eject device\n"			\
-			      "-s     Query storage capacity\n"		\
-			      "-v     Set CD/DVD reading speed\n"	\
-			      "-l     List devices\n"			\
-			      "-a     Automount\n");
+	(void)fprintf(stderr,
+	    "Usage: dsbmc-cli {-e | -m | -s | -u | -v <speed>} <device>\n" \
+	    "       dsbmc-cli {-e | -u} <mount point>\n"		   \
+	    "       dsbmc-cli {-a | -l}\n"				   \
+	    "       dsbmc-cli [-h]\n\n"					   \
+	    "Options:\n"						   \
+	    "-m     Mount device\n"					   \
+	    "-u     Unmount device\n"					   \
+	    "-e     Eject device\n"					   \
+	    "-s     Query storage capacity\n"				   \
+	    "-v     Set CD/DVD reading speed\n"				   \
+	    "-l     List devices\n"					   \
+	    "-a     Automount\n");
 	exit(EXIT_FAILURE);
 }
 
