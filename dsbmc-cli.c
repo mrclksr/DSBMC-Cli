@@ -47,8 +47,11 @@
 		printf("%s" #m"=%s", strcmp(#m, "dev") ? ":" : "", s->m); \
 } while (0)
 
+#define PO(opt, desc) printf("%-*s%s\n", 20, opt, desc)
+
 static void list(void);
 static void usage(void);
+static void help(void);
 static void automount(void);
 static void do_mount(const dsbmc_dev_t *dev);
 static void cb(int code, const dsbmc_dev_t *d);
@@ -91,6 +94,7 @@ main(int argc, char *argv[])
 			speed = strtol(optarg, NULL, 10);
 			break;
 		case 'h':
+			help();
 		case '?':
 		default:
 			usage();
@@ -98,7 +102,7 @@ main(int argc, char *argv[])
 	}
 	argc -= optind;
 	argv += optind;
-
+	
 	if (dsbmc_connect() == -1)
 		errx(EXIT_FAILURE, "%s", dsbmc_errstr());
 	if (lflag)
@@ -296,15 +300,25 @@ usage()
 	    "Usage: dsbmc-cli {-e | -m | -s | -u | -v <speed>} <device>\n" \
 	    "       dsbmc-cli {-e | -u} <mount point>\n"		   \
 	    "       dsbmc-cli {-a | -l}\n"				   \
-	    "       dsbmc-cli [-h]\n\n"					   \
-	    "Options:\n"						   \
-	    "-m     Mount device\n"					   \
-	    "-u     Unmount device\n"					   \
-	    "-e     Eject device\n"					   \
-	    "-s     Query storage capacity\n"				   \
-	    "-v     Set CD/DVD reading speed\n"				   \
-	    "-l     List devices\n"					   \
-	    "-a     Automount\n");
+	    "       dsbmc-cli [-h]\n");
 	exit(EXIT_FAILURE);
+}
+
+static void
+help()
+{
+	(void)printf("Options:\n");
+	PO("-a",
+	    "Automount. Wait for device added to the system to mount them");
+	PO("-e <device>", "Eject <device>");
+	PO("-e <mount point>", "Eject the device mounted on <mount point>");
+	PO("-l", "List devices");
+	PO("-m <device>", "Mount <device>");
+	PO("-s <device>", "Query storage capacity of <device>");
+	PO("-u <device>", "Unmount <device>");
+	PO("-u <mount point>", "Unmount <device> mounted on <mount point>");
+	PO("-v <speed> <device>",
+	    "Set reading <speed> of the CD/DVD <device>");
+	exit(EXIT_SUCCESS);
 }
 
