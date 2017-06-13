@@ -33,6 +33,9 @@
 #include <fcntl.h>
 #include <sys/select.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
 #include "libdsbmc/libdsbmc.h"
 
 #define PATH_LOCKF ".dsbmc-cli.lock"
@@ -47,31 +50,49 @@
 		printf("%s" #m"=%s", strcmp(#m, "dev") ? ":" : "", s->m); \
 } while (0)
 
-#define PO(opt, desc) printf("%-*s%s\n", 20, opt, desc)
+#define PO(opt, desc) printf("%-*s%s\n", 33, opt, desc)
+
+enum { EVENT_MOUNT, EVENT_UNMOUNT, EVENT_ADD, EVENT_REMOVE };
+
+static struct event_command_s {
+	int	   argc;
+	char	   **args;
+	const char *event;
+} evcmds[4] = {
+	{ 0, NULL, "mount" }, { 0, NULL, "unmount" },
+	{ 0, NULL, "add"   }, { 0, NULL, "remove"  }
+};
+#define NEVENTS (sizeof(evcmds)/sizeof(evcmds[0]))
 
 static void list(void);
 static void usage(void);
 static void help(void);
-static void automount(void);
+static void do_listen(bool automount);
+static void cleanpath(char *path);
 static void do_mount(const dsbmc_dev_t *dev);
 static void cb(int code, const dsbmc_dev_t *d);
 static void size_cb(int code, const dsbmc_dev_t *d);
-static void cleanpath(char *path);
+static void add_event_command(char **argv, int *argskip);
+static void exec_event_command(int ev, dsbmc_dev_t *dev);
 static const dsbmc_dev_t *dev_from_mnt(const char *mnt);
 
 int
 main(int argc, char *argv[])
 {
 	int	      i, ch, speed;
-	bool	      aflag, mflag, uflag, lflag, sflag, vflag, eflag;
+	bool	      Lflag, aflag, mflag, uflag, lflag, sflag, vflag, eflag;
 	const char    seq[] = "-|/-\\|/";
 	struct stat   sb;
 	dsbmc_event_t e;
 	const dsbmc_dev_t *dev, **dls;
 
-	aflag = eflag = mflag = uflag = lflag = sflag = vflag = false;
-	while ((ch = getopt(argc, argv, "amusehv:l")) != -1) {
+	Lflag = aflag = eflag = mflag = uflag = lflag = sflag = vflag = false;
+	while ((ch = getopt(argc, argv, "L:amusehv:l")) != -1) {
 		switch (ch) {
+		case 'L':
+			Lflag = true;
+			add_event_command(&argv[optind - 1], &optind);
+			break;
 		case 'a':
 			aflag = true;
 		case 'm':
@@ -95,6 +116,7 @@ main(int argc, char *argv[])
 			break;
 		case 'h':
 			help();
+			break;
 		case '?':
 		default:
 			usage();
@@ -108,7 +130,9 @@ main(int argc, char *argv[])
 	if (lflag)
 		list();
 	else if (aflag)
-		automount();
+		do_listen(true);
+	else if (Lflag)
+		do_listen(false);
 	else if (argc < 1)
 		usage();
 	if (sflag || mflag || uflag || eflag || vflag) {
@@ -154,6 +178,67 @@ main(int argc, char *argv[])
 	if (dsbmc_get_err(NULL))
 		errx(EXIT_FAILURE, "%s", dsbmc_errstr());
 	return (EXIT_SUCCESS);
+}
+
+static void
+add_event_command(char **argv, int *argskip)
+{
+	int  i, n;
+	bool terminated = false;
+
+	for (i = 0; i < NEVENTS && strcmp(evcmds[i].event, argv[0]); i++)
+		;
+	if (i == NEVENTS) {
+		warnx("Invalid event '%s'", argv[0]);
+		usage();
+	}
+	for (n = 0; argv[n] != NULL; n++) {
+		if (!strcmp(argv[n], ";")) {
+			terminated = true; (*argskip)++;
+			break;
+		}
+	}
+	if (--n < 2 || !terminated) {
+		if (!terminated)
+			warnx("Missing terminating ';'");
+		usage();
+	}
+	evcmds[i].args = argv + 1; evcmds[i].argc = n; (*argskip) += n;
+}
+
+static void
+exec_event_command(int ev, dsbmc_dev_t *dev)
+{
+	int  i;
+	char **args;
+
+	if (evcmds[ev].argc == 0)
+		return;
+	if ((args = malloc(sizeof(char **) * (evcmds[ev].argc + 1))) == NULL)
+		err(EXIT_FAILURE, "malloc()");
+	args[evcmds[ev].argc] = NULL;
+
+	for (i = 0; i < evcmds[ev].argc; i++) {
+		if (!strcmp(evcmds[ev].args[i], "%d"))
+			args[i] = dev->dev;
+		else if (!strcmp(evcmds[ev].args[i], "%m"))
+			args[i] = dev->mntpt;
+		else
+			args[i] = evcmds[ev].args[i];
+	}
+	switch (vfork()) {
+	case -1:
+		err(EXIT_FAILURE, "vfork()");
+	case  0:
+		(void)execvp(args[0], args);
+		err(EXIT_FAILURE, "execvp(%s)", args[0]);
+	default:
+		while (wait(NULL) == -1) {
+			if (errno != EINTR)
+				err(EXIT_FAILURE, "wait()");
+		}
+		free(args);
+	}
 }
 
 static void
@@ -246,7 +331,7 @@ do_mount(const dsbmc_dev_t *dev)
 }
 
 static void
-automount()
+do_listen(bool automount)
 {
 	int	      i, fd, s;
 	char	      path[PATH_MAX];
@@ -255,24 +340,27 @@ automount()
 	struct passwd *pw;
 	const dsbmc_dev_t **dls;
 
-	if ((pw = getpwuid(getuid())) == NULL)
-		err(EXIT_FAILURE, "getpwuid()");
-	endpwent();
 
-	(void)snprintf(path, sizeof(path) - 1, "%s/%s", pw->pw_dir,
-	    PATH_LOCKF);
+	if (automount) {
+		if ((pw = getpwuid(getuid())) == NULL)
+			err(EXIT_FAILURE, "getpwuid()");
+		endpwent();
 
-	if ((fd = open(path, O_CREAT | O_WRONLY)) == -1)
-		err(EXIT_FAILURE, "Couldn't open/create %s", path);
-	if (lockf(fd, F_TLOCK, 0) == -1) {
-		if (errno != EAGAIN)
-			err(EXIT_FAILURE, "lockf()");
-		errx(EXIT_FAILURE, "Another instance of 'dsbmc-cli " \
-		    "-a' is already running.");
-	}
-	for (i = 0; i < dsbmc_get_devlist(&dls); i++) {
-		if (!dls[i]->mounted)
-			do_mount(dls[i]);
+		(void)snprintf(path, sizeof(path) - 1, "%s/%s", pw->pw_dir,
+		    PATH_LOCKF);
+
+		if ((fd = open(path, O_CREAT | O_WRONLY)) == -1)
+			err(EXIT_FAILURE, "Couldn't open/create %s", path);
+		if (lockf(fd, F_TLOCK, 0) == -1) {
+			if (errno != EAGAIN)
+				err(EXIT_FAILURE, "lockf()");
+			errx(EXIT_FAILURE, "Another instance of 'dsbmc-cli " \
+			    "-a' is already running.");
+		}
+		for (i = 0; i < dsbmc_get_devlist(&dls); i++) {
+			if (!dls[i]->mounted)
+				do_mount(dls[i]);
+		}
 	}
 	for (s = dsbmc_get_fd();;) {
 		FD_ZERO(&fdset); FD_SET(s, &fdset);
@@ -283,10 +371,25 @@ automount()
 			continue;
 		}
 		while (dsbmc_fetch_event(&e) > 0) {
-			if (e.type == DSBMC_EVENT_ADD_DEVICE)
-				do_mount(e.dev);
-			else if (e.type == DSBMC_EVENT_DEL_DEVICE)
+			switch (e.type) {
+			case DSBMC_EVENT_ADD_DEVICE:
+				exec_event_command(EVENT_ADD, e.dev);
+				if (automount) {
+					do_mount(e.dev);
+					exec_event_command(EVENT_MOUNT, e.dev);
+				}
+				break;
+			case DSBMC_EVENT_DEL_DEVICE:
+				exec_event_command(EVENT_REMOVE, e.dev);
 				dsbmc_free_dev(e.dev);
+				break;
+			case DSBMC_EVENT_MOUNT:
+				exec_event_command(EVENT_MOUNT, e.dev);
+				break;
+			case DSBMC_EVENT_UNMOUNT:
+				exec_event_command(EVENT_UNMOUNT, e.dev);
+				break;
+			}
 		}
 		if (dsbmc_get_err(NULL) & DSBMC_ERR_LOST_CONNECTION)
 			errx(EXIT_FAILURE, "%s", dsbmc_errstr());
@@ -297,10 +400,11 @@ static void
 usage()
 {
 	(void)fprintf(stderr,
-	    "Usage: dsbmc-cli {-e | -m | -s | -u | -v <speed>} <device>\n" \
-	    "       dsbmc-cli {-e | -u} <mount point>\n"		   \
-	    "       dsbmc-cli {-a | -l}\n"				   \
-	    "       dsbmc-cli [-h]\n");
+	  "Usage: dsbmc-cli -L <event> <command> [arg ...] ; [ -L ...]\n"     \
+	  "       dsbmc-cli -a [[-L <event> <command> [arg ...] ; [-L ...]]\n"\
+	  "       dsbmc-cli {-e | -m | -s | -u | -v <speed>} <device>\n"      \
+	  "       dsbmc-cli {-e | -u} <mount point>\n"			      \
+	  "       dsbmc-cli [-h]\n");
 	exit(EXIT_FAILURE);
 }
 
@@ -308,11 +412,16 @@ static void
 help()
 {
 	(void)printf("Options:\n");
-	PO("-a",
-	    "Automount. Wait for device added to the system to mount them");
+	PO("-L <event> <command> [arg ...] ;",
+	    "Listen for <event> and execute <command> every");
+	PO("", "time the event is received. Possible events are");
+	PO("", "mount, unmount, add, and remove.");
+	PO("-a [-L ...]",
+	    "Automount. Wait for devices added to the sys-");
+	PO("", "tem, and mount them.");
 	PO("-e <device>", "Eject <device>");
 	PO("-e <mount point>", "Eject the device mounted on <mount point>");
-	PO("-l", "List devices");
+	PO("-l", "List available devices supported by DSBMD.");
 	PO("-m <device>", "Mount <device>");
 	PO("-s <device>", "Query storage capacity of <device>");
 	PO("-u <device>", "Unmount <device>");
