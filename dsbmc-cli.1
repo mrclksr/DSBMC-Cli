@@ -1,0 +1,50 @@
+.Dd $Mdocdate$
+.Dt dsbmc-cli 1
+.Os
+.Sh NAME
+.Nm dsbmc-cli
+.Nd command-line client for DSBMD
+.Sh SYNOPSIS
+.Nm
+.Brq Fl a | e | m | s | u | v Ar speed
+.Ar device
+.Nm
+.Brq Fl e | u
+.Ar "<mount point>"
+.Nm
+.Brq Fl a | l
+.Nm
+.Op Fl h
+.Sh DESCRIPTION
+This program lets you mount, unmount and eject devices by sending requests
+to DSBMD.
+.Pp
+.Sh OPTIONS
+.Bl -tag -width indent
+.It Fl a
+Automount. After mounting all devices presented by DSBMD,
+.Xr dsbmc-cli 1
+waits for new devices added to the system, and mounts them.
+.It Fl e Ar device , Fl e Ar <mount point>
+Ejects the given
+.Ar device
+or the device mounted on
+.Ar <mount point>
+.It Fl l
+List all currently attached devices DSBMD supports.
+.It Fl m Ar device
+Mounts the given
+.Ar device .
+.It Fl s Ar device
+Queries the storage capacity of
+.Ar device ,
+and prints the media size, the number of used and free bytes to stdout.
+.It Fl u Ar device , Fl u Ar <mount point>
+Unmounts the given
+.Ar device
+or the device mounted on
+.Ar <mount point>
+.It Fl v Ar speed Ar device
+Set the reading speed of the given CD/DVD
+.Ar device .
+
