@@ -84,7 +84,7 @@ static void do_mount(const dsbmc_dev_t *dev);
 static void cb(int code, const dsbmc_dev_t *d);
 static void size_cb(int code, const dsbmc_dev_t *d);
 static void add_event_command(char **argv, int *argskip);
-static void exec_event_command(int ev, dsbmc_dev_t *dev);
+static void exec_event_command(int ev, const dsbmc_dev_t *dev);
 static char *dtype_to_name(uint8_t type);
 static const dsbmc_dev_t *dev_from_mnt(const char *mnt);
 
@@ -232,7 +232,7 @@ add_event_command(char **argv, int *argskip)
 }
 
 static void
-exec_event_command(int ev, dsbmc_dev_t *dev)
+exec_event_command(int ev, const dsbmc_dev_t *dev)
 {
 	int  i, j;
 	char **args, *p, buf[1024];
@@ -434,8 +434,10 @@ do_listen(bool automount)
 			    "-a' is already running.");
 		}
 		for (i = 0; i < dsbmc_get_devlist(&dls); i++) {
-			if (!dls[i]->mounted)
+			if (!dls[i]->mounted) {
 				do_mount(dls[i]);
+				exec_event_command(EVENT_MOUNT, dls[i]);
+			}
 		}
 	}
 	for (s = dsbmc_get_fd();;) {
