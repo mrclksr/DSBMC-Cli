@@ -49,19 +49,35 @@ and
 The
 .Ar command
 must be terminated by a semicolon
-.Pq Dq \;
-as a separate argument. If the string
+.Pq Sq \;
+as a separate argument. Each event provides information about the device
+that can be accessed using the placeholders
 .Em %d
-or
+(device name),
+.Em %l
+(volume label),
 .Em %m
-appears as argument, it will be replaced by the device name or the
-mount point respectively. Note that
-.Em %m
-is only defined for the
+(mount point) (only
 .Em mount
-and the
+and
 .Em unmount
-events. The 
+), and
+.Em %t
+(device type). A literal percent character
+.Pq Sq %
+must be escaped by a further
+.Sq %
+character
+.Pq Dq %% .
+
+Possible values for the device type
+.Pq Em %t
+are
+.Em hdd , usbdisk , datacd , audiocd , dvd , vcd ,  svcd ,  mmc , mtp ,
+and
+.Em ptp .
+
+The
 .Fl L
 option can be given multiple times.
 .It Fl a
@@ -99,5 +115,6 @@ or the device mounted on
 Set the reading speed of the given CD/DVD
 .Ar device .
 .Sh EXAMPLES
-.Dl $ dsbmc-cli -L mount printf \(dq%s was mounted on %s\en\(dq %d %m ';'
+.Dl $ dsbmc-cli -L mount printf \(dq%%s was mounted on %%s\en\(dq %d %m ';'
+.Dl $ dsbmc-cli -L add echo \(dqDevice %d of type %t was added.\(dq ';'
 
