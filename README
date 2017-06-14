@@ -1,27 +1,36 @@
 				ABOUT
 
-dsbmc-cli is a simple command-line client for DSBMD. It's basically a test for
-libdsbmc.
+dsbmc-cli is a simple command-line client for DSBMD. It lets you mount, un-
+mount, and eject storage devices, and more. See the manual page for more in-
+formation.
 
- 			       INSTALLATION
+ 			     INSTALLATION
 
 # git clone https://github.com/mrclksr/dsbmc-cli.git
 # git clone https://github.com/mrclksr/libdsbmc.git
 # cd dsbmc-cli && make install
 
-				USAGE
+			        USAGE
 
-Usage: dsbmc-cli -m|-u|-e|-s dev
-       dsbmc-cli -v speed dev
+Usage: dsbmc-cli -L <event> <command> [arg ...] ; [ -L ...]
+       dsbmc-cli -a [[-L <event> <command> [arg ...] ; [-L ...]]
+       dsbmc-cli {-e | -m | -s | -u | -v <speed>} <device>
+       dsbmc-cli {-e | -u} <mount point>
        dsbmc-cli -l
-       dsbmc-cli -a
+       dsbmc-cli [-h]
 
-Flags:
--m     Mount device
--u     Unmount device
--e     Eject device
--s     Query storage capacity
--v     Set CD/DVD reading speed
--l     List devices
--a     Automount
+Options:
+-L <event> <command> [arg ...] ; Listen for <event> and execute <command> every
+                                 time the event is received. Possible events are
+                                 mount, unmount, add, and remove.
+-a [-L ...]                      Automount. Wait for devices added to the sys-
+                                 tem, and mount them.
+-e <device>                      Eject <device>
+-e <mount point>                 Eject the device mounted on <mount point>
+-l                               List available devices supported by DSBMD.
+-m <device>                      Mount <device>
+-s <device>                      Query storage capacity of <device>
+-u <device>                      Unmount <device>
+-u <mount point>                 Unmount <device> mounted on <mount point>
+-v <speed> <device>              Set reading <speed> of the CD/DVD <device>
 
