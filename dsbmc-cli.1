@@ -6,13 +6,25 @@
 .Nd command-line client for DSBMD
 .Sh SYNOPSIS
 .Nm
+.Fl L Ar event Ar command
+.Op Ar arg ...
+\;
+.Op Fl L Ar ...
+.Nm
+.Fl a
+.Bo
+.Op Fl L Ar event Ar command Op Ar arg ...
+\;
+.Op Fl L Ar ...
+.Bc
+.Nm
 .Brq Fl a | e | m | s | u | v Ar speed
 .Ar device
 .Nm
 .Brq Fl e | u
 .Ar "<mount point>"
 .Nm
-.Brq Fl a | l
+.Fl l
 .Nm
 .Op Fl h
 .Sh DESCRIPTION
@@ -21,26 +33,65 @@ to DSBMD.
 .Pp
 .Sh OPTIONS
 .Bl -tag -width indent
+.It Fl L
+Listen for
+.Ar event ,
+and execute the
+.Ar command
+every time the
+.Em event
+is received. Possible events are
+.Em mount ,
+.Em unmount ,
+.Em add ,
+and
+.Em remove .
+The
+.Ar command
+must be terminated by a semicolon
+.Pq Dq \;
+as a separate argument. If the string
+.Em %d
+or
+.Em %m
+appears as argument, it will be replaced by the device name or the
+mount point respectively. Note that
+.Em %m
+is only defined for the
+.Em mount
+and the
+.Em unmount
+events. The 
+.Fl L
+option can be given multiple times.
 .It Fl a
 Automount. After mounting all devices presented by DSBMD,
 .Xr dsbmc-cli 1
 waits for new devices added to the system, and mounts them.
+In addition, the
+.Fl L
+option can be specified for each event. If
+.Xr dsbmc-cli 1
+automounts a device, it executes the command defined for the
+.Em mount
+event.
 .It Fl e Ar device , Fl e Ar <mount point>
-Ejects the given
+Eject the given
 .Ar device
 or the device mounted on
 .Ar <mount point>
 .It Fl l
 List all currently attached devices DSBMD supports.
 .It Fl m Ar device
-Mounts the given
+Mount the given
 .Ar device .
 .It Fl s Ar device
-Queries the storage capacity of
-.Ar device ,
-and prints the media size, the number of used and free bytes to stdout.
+The storage capacity of the given
+.Ar device
+is queried, and the media size, the number of used and free bytes are
+printed to stdout.
 .It Fl u Ar device , Fl u Ar <mount point>
-Unmounts the given
+Unmount the given
 .Ar device
 or the device mounted on
 .Ar <mount point>
