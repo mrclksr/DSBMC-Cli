@@ -196,6 +196,7 @@ static void
 add_event_command(char **argv, int *argskip)
 {
 	int  i, n;
+	char *p, *q;
 	bool terminated = false;
 
 	for (i = 0; i < NEVENTS && strcmp(evcmds[i].event, argv[0]); i++)
@@ -205,11 +206,19 @@ add_event_command(char **argv, int *argskip)
 		usage();
 	}
 	for (n = 0; argv[n] != NULL; n++) {
-		if (!strcmp(argv[n], "%m") &&
-		    i != EVENT_MOUNT && i != EVENT_UNMOUNT) {
-			errx(EXIT_FAILURE,
-			    "%%m is not defined for the %s event", argv[0]);
-		} else if (!strcmp(argv[n], ";")) {
+		for (p = argv[n]; (p = strchr(p, '%')) != NULL; p++) {
+			if ((q = strchr("%dlmt", *++p)) == NULL) {
+				errx(EXIT_FAILURE, "Invalid sequence '%%%c'",
+				    *p);
+			}
+			if (*q == 'm' && i != EVENT_MOUNT &&
+			    i != EVENT_UNMOUNT) {
+				errx(EXIT_FAILURE,
+				    "%%m is not defined for the %s event",
+				    argv[0]);
+			}
+		}
+		if (!strcmp(argv[n], ";")) {
 			terminated = true; (*argskip)++;
 			break;
 		}
@@ -225,8 +234,9 @@ add_event_command(char **argv, int *argskip)
 static void
 exec_event_command(int ev, dsbmc_dev_t *dev)
 {
-	int  i;
-	char **args;
+	int  i, j;
+	char **args, *p, buf[1024];
+	size_t len;
 
 	if (evcmds[ev].argc == 0)
 		return;
@@ -235,14 +245,47 @@ exec_event_command(int ev, dsbmc_dev_t *dev)
 	args[evcmds[ev].argc] = NULL;
 
 	for (i = 0; i < evcmds[ev].argc; i++) {
-		if (!strcmp(evcmds[ev].args[i], "%d"))
-			args[i] = dev->dev;
-		else if (!strcmp(evcmds[ev].args[i], "%m"))
-			args[i] = dev->mntpt;
-		else if (!strcmp(evcmds[ev].args[i], "%t"))
-			args[i] = dtype_to_name(dev->type);
-		else
-			args[i] = evcmds[ev].args[i];
+		for (j = 0, p = evcmds[ev].args[i];
+		    *p != '\0' && j < sizeof(buf); p++) {
+			if (*p != '%') {
+				buf[j++] = *p; buf[j] = '\0';
+				continue;
+			}
+			/* *p == '%' */
+			switch (p[1]) {
+			case '%':
+				buf[j++] = '%';
+				break;
+			case 'd':
+				(void)strncpy(buf + j, dev->dev,
+				    sizeof(buf) - j - 1);
+				len = strlen(buf + j); j += len;
+				break;
+			case 'l':
+				(void)strncpy(buf + j, dev->volid != NULL ? \
+				    dev->volid : dev->dev,
+				    sizeof(buf) - j - 1);
+				len = strlen(buf + j); j += len;
+				break;
+			case 'm':
+				(void)strncpy(buf + j, dev->mntpt,
+				    sizeof(buf) - j - 1);
+				len = strlen(buf + j); j += len;
+				break;
+			case 't':
+				(void)strncpy(buf + j, dtype_to_name(dev->type),
+				    sizeof(buf) - j - 1);
+				len = strlen(buf + j); j += len;
+				break;
+			default:
+				errx(EXIT_FAILURE,
+				    "Unknown placeholder '%%%c'", p[1]);
+			}
+			p++;
+		}
+		buf[j] = '\0';
+		if ((args[i] = strdup(buf)) == NULL)
+			err(EXIT_FAILURE, "strdup()");
 	}
 	switch (vfork()) {
 	case -1:
@@ -255,6 +298,8 @@ exec_event_command(int ev, dsbmc_dev_t *dev)
 			if (errno != EINTR)
 				err(EXIT_FAILURE, "wait()");
 		}
+		for (i = 0; i < evcmds[ev].argc; i++)
+			free(args[i]);
 		free(args);
 	}
 }
