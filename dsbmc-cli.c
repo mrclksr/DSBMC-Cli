@@ -64,6 +64,17 @@ static struct event_command_s {
 };
 #define NEVENTS (sizeof(evcmds)/sizeof(evcmds[0]))
 
+static struct dtype_s {
+	char	*name;
+	uint8_t type;
+} dtypes[] = {
+	{ "hdd",    DSBMC_DT_HDD    }, { "usbdisk", DSBMC_DT_USBDISK },
+	{ "datacd", DSBMC_DT_DATACD }, { "audiocd", DSBMC_DT_AUDIOCD },
+	{ "dvd",    DSBMC_DT_DVD    }, { "vcd",	    DSBMC_DT_VCD     },
+	{ "svcd",   DSBMC_DT_SVCD   }, { "mmc",	    DSBMC_DT_MMC     },
+	{ "mtp",    DSBMC_DT_MTP    }, { "ptp",	    DSBMC_DT_PTP     }
+};
+
 static void list(void);
 static void usage(void);
 static void help(void);
@@ -74,6 +85,7 @@ static void cb(int code, const dsbmc_dev_t *d);
 static void size_cb(int code, const dsbmc_dev_t *d);
 static void add_event_command(char **argv, int *argskip);
 static void exec_event_command(int ev, dsbmc_dev_t *dev);
+static char *dtype_to_name(uint8_t type);
 static const dsbmc_dev_t *dev_from_mnt(const char *mnt);
 
 int
@@ -227,6 +239,8 @@ exec_event_command(int ev, dsbmc_dev_t *dev)
 			args[i] = dev->dev;
 		else if (!strcmp(evcmds[ev].args[i], "%m"))
 			args[i] = dev->mntpt;
+		else if (!strcmp(evcmds[ev].args[i], "%t"))
+			args[i] = dtype_to_name(dev->type);
 		else
 			args[i] = evcmds[ev].args[i];
 	}
@@ -285,6 +299,19 @@ dev_from_mnt(const char *mnt)
 	return (NULL);
 }
 
+static char *
+dtype_to_name(uint8_t type)
+{
+	int	    i;
+	static char *empty = "";
+
+	for (i = 0; i < sizeof(dtypes) / sizeof(dtypes[0]); i++) {
+		if (dtypes[i].type == type)
+			return (dtypes[i].name);
+	}
+	return (empty);
+}
+
 static void
 cb(int code, const dsbmc_dev_t *d)
 {
@@ -316,6 +343,7 @@ list()
 		P(devlist[i], volid);
 		P(devlist[i], fsname);
 		P(devlist[i], mntpt);
+		(void)printf(":type=%s", dtype_to_name(devlist[i]->type));
 	}
 	exit(EXIT_SUCCESS);
 }
@@ -343,7 +371,6 @@ do_listen(bool automount)
 	dsbmc_event_t e;
 	struct passwd *pw;
 	const dsbmc_dev_t **dls;
-
 
 	if (automount) {
 		if ((pw = getpwuid(getuid())) == NULL)
