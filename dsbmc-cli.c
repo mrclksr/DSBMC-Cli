@@ -193,7 +193,11 @@ add_event_command(char **argv, int *argskip)
 		usage();
 	}
 	for (n = 0; argv[n] != NULL; n++) {
-		if (!strcmp(argv[n], ";")) {
+		if (!strcmp(argv[n], "%m") &&
+		    i != EVENT_MOUNT && i != EVENT_UNMOUNT) {
+			errx(EXIT_FAILURE,
+			    "%%m is not defined for the %s event", argv[0]);
+		} else if (!strcmp(argv[n], ";")) {
 			terminated = true; (*argskip)++;
 			break;
 		}
@@ -404,6 +408,7 @@ usage()
 	  "       dsbmc-cli -a [[-L <event> <command> [arg ...] ; [-L ...]]\n"\
 	  "       dsbmc-cli {-e | -m | -s | -u | -v <speed>} <device>\n"      \
 	  "       dsbmc-cli {-e | -u} <mount point>\n"			      \
+	  "       dsbmc-cli -l\n"					      \
 	  "       dsbmc-cli [-h]\n");
 	exit(EXIT_FAILURE);
 }
