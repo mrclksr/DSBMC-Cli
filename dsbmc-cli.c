@@ -246,9 +246,9 @@ exec_event_command(int ev, const dsbmc_dev_t *dev)
 
 	for (i = 0; i < evcmds[ev].argc; i++) {
 		for (j = 0, p = evcmds[ev].args[i];
-		    *p != '\0' && j < sizeof(buf); p++) {
+		    *p != '\0' && j < sizeof(buf) - 1; p++) {
 			if (*p != '%') {
-				buf[j++] = *p; buf[j] = '\0';
+				buf[j++] = *p;
 				continue;
 			}
 			/* *p == '%' */
