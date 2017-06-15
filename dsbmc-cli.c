@@ -492,7 +492,7 @@ help()
 {
 	(void)printf("Options:\n");
 	PO("-L <event> <command> [arg ...] ;",
-	    "Listen for <event> and execute <command> every");
+	    "Listen for <event>, and execute <command> every");
 	PO("", "time the event is received. Possible events are");
 	PO("", "mount, unmount, add, and remove.");
 	PO("-a [-L ...]",
