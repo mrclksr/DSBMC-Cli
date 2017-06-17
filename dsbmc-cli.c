@@ -50,6 +50,9 @@
 		printf("%s" #m"=%s", strcmp(#m, "dev") ? ":" : "", s->m); \
 } while (0)
 
+#define PU(s) fprintf(stderr, "%-*s%s %s\n", s[0] == '!' ? 0 : 7,	  \
+	s[0] == '!' ? "Usage: " : "", PROGRAM, s + (s[0] == '!' ? 1 : 0))
+
 #define PO(opt, desc) printf("%-*s%s\n", 33, opt, desc)
 
 enum { EVENT_MOUNT, EVENT_UNMOUNT, EVENT_ADD, EVENT_REMOVE };
@@ -92,14 +95,16 @@ int
 main(int argc, char *argv[])
 {
 	int	      i, ch, speed;
-	bool	      Lflag, aflag, mflag, uflag, lflag, sflag, vflag, eflag;
+	bool	      sflag, vflag, eflag, fflag;
+	bool	      Lflag, aflag, mflag, uflag, lflag;
 	const char    seq[] = "-|/-\\|/";
 	struct stat   sb;
 	dsbmc_event_t e;
 	const dsbmc_dev_t *dev, **dls;
 
-	Lflag = aflag = eflag = mflag = uflag = lflag = sflag = vflag = false;
-	while ((ch = getopt(argc, argv, "L:amusehv:l")) != -1) {
+	fflag = lflag = sflag = vflag = false;
+	Lflag = aflag = eflag = mflag = uflag = false;
+	while ((ch = getopt(argc, argv, "L:afmusehv:l")) != -1) {
 		switch (ch) {
 		case 'L':
 			Lflag = true;
@@ -107,6 +112,10 @@ main(int argc, char *argv[])
 			break;
 		case 'a':
 			aflag = true;
+			break;
+		case 'f':
+			fflag = true;
+			break;
 		case 'm':
 			mflag = true;
 			break;
@@ -176,9 +185,9 @@ main(int argc, char *argv[])
 	else if (sflag)
 		EXEC(dsbmc_size_async(dev, size_cb));
 	else if (uflag)
-		EXEC(dsbmc_unmount_async(dev, cb));
+		EXEC(dsbmc_unmount_async(dev, fflag, cb));
 	else if (eflag)
-		EXEC(dsbmc_eject_async(dev, cb));
+		EXEC(dsbmc_eject_async(dev, fflag, cb));
 	else if (vflag)
 		EXEC(dsbmc_set_speed_async(dev, speed, cb));
 	else
@@ -361,7 +370,7 @@ static void
 cb(int code, const dsbmc_dev_t *d)
 {
 	(void)fputc('\r', stderr);
-	if (code != 0)
+	if (code != 0) 
 		errx(EXIT_FAILURE, "Error: %s", dsbmc_errcode_to_str(code));
 	exit(EXIT_SUCCESS);
 }
@@ -477,13 +486,12 @@ do_listen(bool automount)
 static void
 usage()
 {
-	(void)fprintf(stderr,
-	  "Usage: dsbmc-cli -L <event> <command> [arg ...] ; [ -L ...]\n"     \
-	  "       dsbmc-cli -a [[-L <event> <command> [arg ...] ; [-L ...]]\n"\
-	  "       dsbmc-cli {-e | -m | -s | -u | -v <speed>} <device>\n"      \
-	  "       dsbmc-cli {-e | -u} <mount point>\n"			      \
-	  "       dsbmc-cli -l\n"					      \
-	  "       dsbmc-cli [-h]\n");
+	PU("!-L <event> <command> [arg ...] ; [ -L ...]");
+	PU("-a [[-L <event> <command> [arg ...] ; [-L ...]]");
+	PU("{{-e | -u} [-f] | {-m | -s | -v <speed>}} <device>");
+	PU("{-e | -u} [-f] <mount point>");
+	PU("-l");
+	PU("[-h]");
 	exit(EXIT_FAILURE);
 }
 
@@ -500,6 +508,7 @@ help()
 	PO("", "tem, and mount them.");
 	PO("-e <device>", "Eject <device>");
 	PO("-e <mount point>", "Eject the device mounted on <mount point>");
+	PO("-f", "Force operation even if device is busy.");
 	PO("-l", "List available devices supported by DSBMD.");
 	PO("-m <device>", "Mount <device>");
 	PO("-s <device>", "Query storage capacity of <device>");
