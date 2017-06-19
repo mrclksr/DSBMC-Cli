@@ -13,6 +13,9 @@
 .Nm
 .Fl a
 .Bo
+.Fl U Ar time
+.Bc
+.Bo
 .Op Fl L Ar event Ar command Op Ar arg ...
 \;
 .Op Fl L Ar ...
@@ -28,8 +31,10 @@
 .Nm
 .Op Fl h
 .Sh DESCRIPTION
-This program lets you mount, unmount and eject devices by sending requests
-to DSBMD.
+.Nm
+is a command-line client for DSBMD that provides a simple interface
+to query information about storage devices, and to send request to
+mount, unmount and eject these.
 .Pp
 .Sh OPTIONS
 .Bl -tag -width indent
@@ -80,6 +85,10 @@ and
 The
 .Fl L
 option can be given multiple times.
+.It Fl U
+Auto-unmount. Try to unmount each automounted device every
+.Ar time
+seconds.
 .It Fl a
 Automount. After mounting all devices presented by DSBMD,
 .Xr dsbmc-cli 1
