@@ -1,0 +1,165 @@
+.fi
+.Sh ABOUT
+.Nm dsbmc-cli
+is a command-line client for DSBMD that provides a simple interface
+to query information about storage devices, and to send request to
+mount, unmount and eject these.
+.Sh INSTALLATION
+.Bd -literal
+# git clone https://github.com/mrclksr/dsbmc-cli.git
+# git clone https://github.com/mrclksr/libdsbmc.git
+# cd dsbmc-cli && make install
+.Ed
+.Sh USAGE
+.Nm
+.Fl L Ar event Ar command
+.Op Ar arg ...
+\;
+.Op Fl L Ar ...
+.br
+.Nm
+.Fl a
+.Bo
+.Fl U Ar time
+.Bc
+.Bo
+.Op Fl L Ar event Ar command Op Ar arg ...
+\;
+.Op Fl L Ar ...
+.Bc
+.Nm
+.Brq Fl a | e | m | s | u | v Ar speed
+.Ar device
+.br
+.Nm
+.Brq Fl e | u
+.Ar "<mount point>"
+.br
+.Nm
+.Fl l
+.br
+.Nm
+.Op Fl h
+.Pp
+.Sh OPTIONS
+.Bl -tag -width indent
+.It Fl L
+Listen for
+.Ar event ,
+and execute the
+.Ar command
+every time the
+.Em event
+is received. Possible events are
+.Em mount ,
+.Em unmount ,
+.Em add ,
+and
+.Em remove .
+The
+.Ar command
+must be terminated by a semicolon
+.Pq Sq \;
+as a separate argument. Each event provides information about the device
+that can be accessed using the placeholders
+.Em %d
+(device name),
+.Em %l
+(volume label),
+.Em %m
+(mount point) (only
+.Em mount
+and
+.Em unmount
+), and
+.Em %t
+(device type). A literal percent character
+.Pq Sq %
+must be escaped by a further
+.Sq %
+character
+.Pq Dq %% .
+Possible values for the device type
+.Pq Em %t
+are
+.Em hdd , usbdisk , datacd , audiocd , dvd , vcd ,  svcd ,  mmc , mtp ,
+and
+.Em ptp .
+The
+.Fl L
+option can be given multiple times.
+.It Fl U
+Auto-unmount. Try to unmount each automounted device every
+.Ar time
+seconds.
+.It Fl a
+Automount. After mounting all devices presented by DSBMD,
+.Xr dsbmc-cli 1
+waits for new devices added to the system, and mounts them.
+In addition, the
+.Fl L
+option can be specified for each event. If
+.Xr dsbmc-cli 1
+automounts a device, it executes the command defined for the
+.Em mount
+event.
+.It Fl e Ar device , Fl e Ar <mount point>
+Eject the given
+.Ar device
+or the device mounted on
+.Ar <mount point>
+.It Fl l
+List all currently attached devices DSBMD supports.
+.It Fl m Ar device
+Mount the given
+.Ar device .
+.It Fl s Ar device
+The storage capacity of the given
+.Ar device
+is queried, and the media size, the number of used and free bytes are
+printed to stdout.
+.It Fl u Ar device , Fl u Ar <mount point>
+Unmount the given
+.Ar device
+or the device mounted on
+.Ar <mount point>
+.It Fl v Ar speed Ar device
+Set the reading speed of the given CD/DVD
+.Ar device .
+.El
+.Sh EXAMPLES
+This paragraph provides some examples of whoch the author hopes that it
+will be useful for the reader.
+.Ss 1 Automounting
+.fi
+Just execute
+.Sq dsbmc-cli -a
+or, if you wish, add the command
+.Sq dsbmc-cli -a 2>/dev/null&
+to your shell's startup file, your display
+manager's startup file, or your
+.Em ~/.xsession .
+If you don't want to manually unmount your devices, you can in addition use
+the
+.Fl U
+flag.
+.Ss 1.1 Using dsbmc-cli together with fb-unmount
+If you're using Fluxbox, you might be interested in using the
+script
+.Sq Em fb-unmount ,
+which automatically adds entries of mounted devices to
+your Fluxbox menu. This allows you to unmount and eject devices by clicking
+the corresponding menu entry:
+.Pp
+Get the script from
+.Lk https://github.com/mrclksr/fb-unmount ,
+save it in
+.Em ~/bin ,
+and make it executable (chmod u+x ~/bin/fb-unmount).
+Finally add the following line(s) to your
+.Em ~/.fluxbox/startup :
+.Bd -literal
+dsbmc-cli -a -L mount fb-unmount -m %d %m ';' \\
+    -L unmount fb-unmount -u %d ';'
+.Be
+
