@@ -470,12 +470,12 @@ pdie()
 static void
 add_unmount_thread(const dsbmc_dev_t *dev)
 {
-	char *id;
+	int *id;
 
 	(void)pthread_mutex_lock(&mutex);
 	if ((id = malloc(sizeof(int))) == NULL)
 		err(EXIT_FAILURE, "malloc()");
-	*(int *)id = dev->id;
+	*id = dev->id;
 	if (pthread_create(&tids[ntids], NULL, auto_unmount, id) != 0)
 		err(EXIT_FAILURE, "pthread_create()");
 	(void)pthread_detach(tids[ntids++]);
