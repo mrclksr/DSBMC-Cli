@@ -59,9 +59,6 @@ OPTIONS
              Set the reading speed of the given CD/DVD device.
 
 EXAMPLES
-     This paragraph provides some examples of whoch the author hopes that it
-     will be useful for the reader.
-
    1 Automounting
      Just execute ‘dsbmc-cli -a’ or, if you wish, add the command ‘dsbmc-cli
      -a 2>/dev/null&’ to your shell's startup file, your display manager's
