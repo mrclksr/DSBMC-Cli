@@ -31,6 +31,8 @@
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <pthread.h>
+#include <signal.h>
 #include <sys/select.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -81,34 +83,48 @@ static struct dtype_s {
 static void list(void);
 static void usage(void);
 static void help(void);
-static void do_listen(bool automount);
+static void do_listen(bool automount, bool autounmount);
 static void cleanpath(char *path);
 static void do_mount(const dsbmc_dev_t *dev);
 static void cb(int code, const dsbmc_dev_t *d);
 static void size_cb(int code, const dsbmc_dev_t *d);
 static void add_event_command(char **argv, int *argskip);
 static void exec_event_command(int ev, const dsbmc_dev_t *dev);
+static void sighandler(int signo);
+static void pdie(void);
+static void remove_thread(pthread_t tid);
+static void add_unmount_thread(const dsbmc_dev_t *dev);
+static void *auto_unmount(void *arg);
 static char *dtype_to_name(uint8_t type);
 static const dsbmc_dev_t *dev_from_mnt(const char *mnt);
+
+static int	 ntids;
+static int	 unmount_time;
+static pthread_t tids[64];
+static pthread_mutex_t mutex;
 
 int
 main(int argc, char *argv[])
 {
 	int	      i, ch, speed;
-	bool	      sflag, vflag, eflag, fflag;
+	bool	      sflag, vflag, eflag, fflag, Uflag;
 	bool	      Lflag, aflag, mflag, uflag, lflag;
 	const char    seq[] = "-|/-\\|/";
 	struct stat   sb;
 	dsbmc_event_t e;
 	const dsbmc_dev_t *dev, **dls;
 
-	fflag = lflag = sflag = vflag = false;
+	fflag = lflag = sflag = vflag = Uflag = false;
 	Lflag = aflag = eflag = mflag = uflag = false;
-	while ((ch = getopt(argc, argv, "L:afmusehv:l")) != -1) {
+	while ((ch = getopt(argc, argv, "L:U:afmusehv:l")) != -1) {
 		switch (ch) {
 		case 'L':
 			Lflag = true;
 			add_event_command(&argv[optind - 1], &optind);
+			break;
+		case 'U':
+			Uflag = true;
+			unmount_time = strtol(optarg, NULL, 10);
 			break;
 		case 'a':
 			aflag = true;
@@ -146,14 +162,20 @@ main(int argc, char *argv[])
 	argc -= optind;
 	argv += optind;
 	
+	if (Uflag && !aflag)
+		usage();
+	if ((aflag || Lflag) && (mflag || eflag || uflag || sflag || vflag))
+		usage();
+	if (!!mflag + !!uflag + !!eflag + !!sflag + !!vflag > 1)
+		usage();
 	if (dsbmc_connect() == -1)
 		errx(EXIT_FAILURE, "%s", dsbmc_errstr());
 	if (lflag)
 		list();
 	else if (aflag)
-		do_listen(true);
+		do_listen(true, Uflag);
 	else if (Lflag)
-		do_listen(false);
+		do_listen(false, false);
 	else if (argc < 1)
 		usage();
 	if (sflag || mflag || uflag || eflag || vflag) {
@@ -417,7 +439,100 @@ do_mount(const dsbmc_dev_t *dev)
 }
 
 static void
-do_listen(bool automount)
+sighandler(int signo)
+{
+	return;
+}
+
+static void
+remove_thread(pthread_t tid)
+{
+	int i;
+
+	(void)pthread_mutex_lock(&mutex);
+	for (i = 0; i < ntids && tids[i] != tid; i++)
+		;
+	for (; i < ntids - 1; i++)
+		tids[i] = tids[i + 1];
+	ntids--;
+	(void)pthread_mutex_unlock(&mutex);
+}
+
+static void
+pdie()
+{
+
+	remove_thread(pthread_self());
+	pthread_exit(NULL);
+
+}
+
+static void
+add_unmount_thread(const dsbmc_dev_t *dev)
+{
+	char *id;
+
+	(void)pthread_mutex_lock(&mutex);
+	if ((id = malloc(sizeof(int))) == NULL)
+		err(EXIT_FAILURE, "malloc()");
+	*(int *)id = dev->id;
+	if (pthread_create(&tids[ntids], NULL, auto_unmount, id) != 0)
+		err(EXIT_FAILURE, "pthread_create()");
+	(void)pthread_detach(tids[ntids++]);
+	(void)pthread_mutex_unlock(&mutex);
+}
+
+static void *
+auto_unmount(void *arg)
+{
+	int	     ret, id, i;
+	unsigned int rem;
+	const dsbmc_dev_t *dev, **dls;
+
+	id  = *((int *)arg); free(arg);
+	for (dev = NULL, i = 0; i < dsbmc_get_devlist(&dls); i++) {
+		if (dls[i]->id == id) {
+			dev = dls[i]; break;
+		}
+	}
+	if (dev == NULL)
+		pdie();
+	for (;;) {
+		rem = unmount_time;
+		do {
+			rem = sleep(rem);
+			if (rem != 0 && errno == EINTR) {
+				if (!dev->mounted) {
+					/*
+					 * Device was unmounted from another
+					 * process. There's nothing left to do.
+					 */
+					pdie();
+				}
+			}
+		} while (rem != 0);
+		if (dev->removed || !dev->mounted) {
+			if (dev->removed)
+				dsbmc_free_dev(dev);
+			pdie();
+		}
+		if ((ret = dsbmc_unmount(dev, false)) == -1) {
+			if (ret & DSBMC_ERR_FATAL)
+				err(EXIT_FAILURE, "%s", dsbmc_errstr());
+			else
+				warnx("%s", dsbmc_errstr());
+		} else if (ret > 0) {
+			if (ret != EBUSY && ret != DSBMC_ERR_DEVICE_BUSY)
+				warnx("%s", dsbmc_errcode_to_str(ret));
+		} else {
+			exec_event_command(EVENT_UNMOUNT, dev);
+			pdie();
+		}
+	}
+}
+
+static void
+do_listen(bool automount, bool autounmount)
 {
 	int	      i, fd, s;
 	char	      path[PATH_MAX];
@@ -426,6 +541,12 @@ do_listen(bool automount)
 	struct passwd *pw;
 	const dsbmc_dev_t **dls;
 
+	if (autounmount) {
+		if (signal(SIGUSR1, sighandler) == SIG_ERR)
+			err(EXIT_FAILURE, "signal()");
+		if (pthread_mutex_init(&mutex, NULL) == -1)
+			err(EXIT_FAILURE, "pthread_mutex_init()");
+	}
 	if (automount) {
 		if ((pw = getpwuid(getuid())) == NULL)
 			err(EXIT_FAILURE, "getpwuid()");
@@ -446,6 +567,9 @@ do_listen(bool automount)
 			if (!dls[i]->mounted) {
 				do_mount(dls[i]);
 				exec_event_command(EVENT_MOUNT, dls[i]);
+				if (!autounmount)
+					continue;
+				add_unmount_thread(dls[i]);
 			}
 		}
 	}
@@ -465,21 +589,31 @@ do_listen(bool automount)
 					do_mount(e.dev);
 					exec_event_command(EVENT_MOUNT, e.dev);
 				}
+				if (autounmount)
+					add_unmount_thread(e.dev);
 				break;
 			case DSBMC_EVENT_DEL_DEVICE:
 				exec_event_command(EVENT_REMOVE, e.dev);
-				dsbmc_free_dev(e.dev);
+				if (!autounmount)
+					dsbmc_free_dev(e.dev);
+				
 				break;
 			case DSBMC_EVENT_MOUNT:
 				exec_event_command(EVENT_MOUNT, e.dev);
 				break;
 			case DSBMC_EVENT_UNMOUNT:
+				/*
+				 * Wake up all threads, so they can check the
+				 * mount status of their devices.
+				 */
+				for (i = 0; i < ntids; i++)
+					(void)pthread_kill(tids[i], SIGUSR1);
 				exec_event_command(EVENT_UNMOUNT, e.dev);
 				break;
 			}
 		}
 		if (dsbmc_get_err(NULL) & DSBMC_ERR_LOST_CONNECTION)
-			errx(EXIT_FAILURE, "%s", dsbmc_errstr());
+			errx(EXIT_FAILURE, "Lost connection %s", dsbmc_errstr());
 	}
 }
 
@@ -487,7 +621,7 @@ static void
 usage()
 {
 	PU("!-L <event> <command> [arg ...] ; [ -L ...]");
-	PU("-a [[-L <event> <command> [arg ...] ; [-L ...]]");
+	PU("-a [-U <time>] [[-L <event> <command> [arg ...] ; [-L ...]]");
 	PU("{{-e | -u} [-f] | {-m | -s | -v <speed>}} <device>");
 	PU("{-e | -u} [-f] <mount point>");
 	PU("-l");
@@ -503,6 +637,8 @@ help()
 	    "Listen for <event>, and execute <command> every");
 	PO("", "time the event is received. Possible events are");
 	PO("", "mount, unmount, add, and remove.");
+	PO("-U <time>", "Auto-unmount. Try to unmount automounted de-");
+	PO("", "vices every <time> seconds.");
 	PO("-a [-L ...]",
 	    "Automount. Wait for devices added to the sys-");
 	PO("", "tem, and mount them.");
