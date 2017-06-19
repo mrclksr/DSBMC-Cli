@@ -1,8 +1,8 @@
 
 ABOUT
      dsbmc-cli is a command-line client for DSBMD that provides a simple
-     interface to query information about storage devices, and to send request
-     to mount, unmount and eject these.
+     interface to query information about storage devices, and to send
+     requests to mount, unmount and eject these.
 
 INSTALLATION
      # git clone https://github.com/mrclksr/dsbmc-cli.git
@@ -30,7 +30,7 @@ OPTIONS
              svcd, mmc, mtp, and ptp.  The -L option can be given multiple
              times.
 
-     -U      Auto-unmount. Try to unmount each automounted device every time
+     -U      Auto-unmount. Try to unmount each automounted device every ‘time’
              seconds.
 
      -a      Automount. After mounting all devices presented by DSBMD,
@@ -76,7 +76,7 @@ EXAMPLES
      the following line(s) to your ~/.fluxbox/startup:
 
      dsbmc-cli -a -L mount fb-unmount -m %d %m ';' \
-         -L unmount fb-unmount -u %d ';'
+         -L unmount fb-unmount -u %d ';'&
 
 
-                                 June 19, 2017
+FreeBSD 11.0-STABLE              June 19, 2017             FreeBSD 11.0-STABLE
