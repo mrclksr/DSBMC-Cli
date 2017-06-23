@@ -27,6 +27,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <limits.h>
+#include <inttypes.h>
 #include <pwd.h>
 #include <err.h>
 #include <errno.h>
@@ -53,7 +54,7 @@
 } while (0)
 
 #define PU(s) fprintf(stderr, "%-*s%s %s\n", s[0] == '!' ? 0 : 7,	  \
-	s[0] == '!' ? "Usage: " : "", PROGRAM, s + (s[0] == '!' ? 1 : 0))
+	s[0] == '!' ? "Usage: " : "", PROGRAM, &s[(s[0] == '!' ? 1 : 0)])
 
 #define PO(opt, desc) printf("%-*s%s\n", 33, opt, desc)
 
@@ -403,8 +404,8 @@ size_cb(int code, const dsbmc_dev_t *d)
 	(void)fputc('\r', stderr);
 	if (code != 0)
 		errx(EXIT_FAILURE, "Error: %s", dsbmc_errcode_to_str(code));
-	(void)printf("size=%lu:used=%lu:free=%lu\n", d->mediasize, d->used,
-	    d->free);
+	(void)printf("size=%" PRId64 ":used=%" PRId64 ":free=%" PRId64 "\n",
+	    d->mediasize, d->used, d->free);
 	exit(EXIT_SUCCESS);
 }
 
