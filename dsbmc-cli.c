@@ -556,7 +556,7 @@ do_listen(bool automount, bool autounmount)
 		(void)snprintf(path, sizeof(path) - 1, "%s/%s", pw->pw_dir,
 		    PATH_LOCKF);
 
-		if ((fd = open(path, O_CREAT | O_WRONLY)) == -1)
+		if ((fd = open(path, O_CREAT|O_WRONLY, S_IWUSR|S_IRUSR)) == -1)
 			err(EXIT_FAILURE, "Couldn't open/create %s", path);
 		if (lockf(fd, F_TLOCK, 0) == -1) {
 			if (errno != EAGAIN)
