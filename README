@@ -5,14 +5,14 @@ ABOUT
      requests to mount, unmount and eject these.
 
 INSTALLATION
-     # git clone https://github.com/mrclksr/dsbmc-cli.git
+     # git clone https://github.com/mrclksr/DSBMC-Cli.git
      # git clone https://github.com/mrclksr/libdsbmc.git
-     # cd dsbmc-cli && make install
+     # cd DSBMC-Cli && make install
 
 USAGE
      dsbmc-cli -L event command [arg ...] ; [-L ...]
      dsbmc-cli -a [-U time] [[-L event command [arg ...]] ; [-L ...]]
-     dsbmc-cli {-a | -e | -m | -s | -u | -v speed} device
+     dsbmc-cli {-e | -m | -s | -u | -v speed} device
      dsbmc-cli {-e | -u} <mount point>
      dsbmc-cli -l
      dsbmc-cli [-h]
@@ -71,12 +71,13 @@ EXAMPLES
      Fluxbox menu. This allows you to unmount and eject devices by clicking
      the corresponding menu entry:
 
-     Get the script from https://github.com/mrclksr/fb-unmount, save it in
-     ~/bin, and make it executable (chmod u+x ~/bin/fb-unmount).  Finally add
-     the following line(s) to your ~/.fluxbox/startup:
+     Get the script from
+           https://github.com/mrclksr/fb-unmount,
+     save it in ~/bin, and make it executable (chmod u+x ~/bin/fb-unmount).
+     Finally add the following line(s) to your ~/.fluxbox/startup:
 
      dsbmc-cli -a -L mount fb-unmount -m %d %m ';' \
          -L unmount fb-unmount -u %d ';'&
 
 
-FreeBSD 11.0-STABLE              June 19, 2017             FreeBSD 11.0-STABLE
+FreeBSD 11.1-STABLE            December 10, 2017           FreeBSD 11.1-STABLE
