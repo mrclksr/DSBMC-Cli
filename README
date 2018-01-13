@@ -12,7 +12,7 @@ INSTALLATION
 USAGE
      dsbmc-cli -L event command [arg ...] ; [-L ...]
      dsbmc-cli -a [-U time] [[-L event command [arg ...]] ; [-L ...]]
-     dsbmc-cli {-e | -m | -s | -u | -v speed} device
+     dsbmc-cli {{-e | -u} [-f] | {-m | -s | -u | -v speed}} device
      dsbmc-cli {-e | -u} <mount point>
      dsbmc-cli -l
      dsbmc-cli [-h]
@@ -80,4 +80,4 @@ EXAMPLES
          -L unmount fb-unmount -u %d ';'&
 
 
-FreeBSD 11.1-STABLE            December 10, 2017           FreeBSD 11.1-STABLE
+FreeBSD 11.1-STABLE            January 13, 2018            FreeBSD 11.1-STABLE
