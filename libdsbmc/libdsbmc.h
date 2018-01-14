@@ -32,13 +32,13 @@ extern "C" {
 #include <stdbool.h>
 #include <stdio.h>
 
-#define DSBMC_ERR_SYS			(1 << 0)
-#define DSBMC_ERR_FATAL			(1 << 1)
-#define DSBMC_ERR_LOST_CONNECTION	(1 << 2)
-#define DSBMC_ERR_INVALID_DEVICE	(1 << 3)
-#define DSBMC_ERR_CMDQ_BUSY		(1 << 4)
-#define DSBMC_ERR_COMMAND_IN_PROGRESS	(1 << 5)
-#define DSBMC_ERR_CONN_DENIED		(1 << 6)
+#define DSBMC_ERR_SYS			(1 << 10)
+#define DSBMC_ERR_FATAL			(1 << 11)
+#define DSBMC_ERR_LOST_CONNECTION	(1 << 12)
+#define DSBMC_ERR_INVALID_DEVICE	(1 << 13)
+#define DSBMC_ERR_CMDQ_BUSY		(1 << 14)
+#define DSBMC_ERR_COMMAND_IN_PROGRESS	(1 << 15)
+#define DSBMC_ERR_CONN_DENIED		(1 << 16)
 
 #define DSBMC_ERR_ALREADY_MOUNTED	((1 << 8) + 0x01)
 #define DSBMC_ERR_PERMISSION_DENIED	((1 << 8) + 0x02)

@@ -226,6 +226,10 @@ dsbmc_mount(const dsbmc_dev_t *d)
 
 	LOOKUP_DEV(d, dev);
 	if ((ret = dsbmc_send("mount %s\n", dev->dev)) == 0) {
+		if (dsbmdevent.devinfo.mntpt == NULL) {
+			ERROR(-1, DSBMC_ERR_UNKNOWN_ERROR, false,
+			    "mntpt == NULL");
+		}
 		dev->mounted = true; free(dev->mntpt);
 		dev->mntpt = strdup(dsbmdevent.devinfo.mntpt);
 		if (dev->mntpt == NULL)
