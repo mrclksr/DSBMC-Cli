@@ -27,6 +27,9 @@
 .Brq Fl e | u
 .Ar "<mount point>"
 .Nm
+.Fl i
+.Ar "<disk image>"
+.Nm
 .Fl l
 .Nm
 .Op Fl h
@@ -105,6 +108,9 @@ Eject the given
 .Ar device
 or the device mounted on
 .Ar <mount point>
+.It Fl i Ar <disk image>
+Create a memory disk to access the given
+.Ar disk image .
 .It Fl l
 List all currently attached devices DSBMD supports.
 .It Fl m Ar device
