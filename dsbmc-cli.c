@@ -109,15 +109,16 @@ main(int argc, char *argv[])
 {
 	int	      i, ch, speed;
 	bool	      sflag, vflag, eflag, fflag, Uflag;
-	bool	      Lflag, aflag, mflag, uflag, lflag;
+	bool	      Lflag, aflag, mflag, uflag, lflag, iflag;
+	char	      *image;
 	const char    seq[] = "-|/-\\|/";
 	struct stat   sb;
 	dsbmc_event_t e;
 	const dsbmc_dev_t *dev, **dls;
 
 	fflag = lflag = sflag = vflag = Uflag = false;
-	Lflag = aflag = eflag = mflag = uflag = false;
-	while ((ch = getopt(argc, argv, "L:U:afmusehv:l")) != -1) {
+	Lflag = aflag = eflag = mflag = uflag = iflag = false;
+	while ((ch = getopt(argc, argv, "L:U:afimusehv:l")) != -1) {
 		switch (ch) {
 		case 'L':
 			Lflag = true;
@@ -132,6 +133,9 @@ main(int argc, char *argv[])
 			break;
 		case 'f':
 			fflag = true;
+			break;
+		case 'i':
+			iflag = true;
 			break;
 		case 'm':
 			mflag = true;
@@ -167,7 +171,7 @@ main(int argc, char *argv[])
 		usage();
 	if ((aflag || Lflag) && (mflag || eflag || uflag || sflag || vflag))
 		usage();
-	if (!!mflag + !!uflag + !!eflag + !!sflag + !!vflag > 1)
+	if (!!mflag + !!uflag + !!eflag + !!sflag + !!vflag + !!iflag > 1)
 		usage();
 	if (dsbmc_connect() == -1)
 		errx(EXIT_FAILURE, "%s", dsbmc_errstr());
@@ -202,6 +206,9 @@ main(int argc, char *argv[])
 		}
 		if (dev == NULL)
 			errx(EXIT_FAILURE, "No such device '%s'", argv[0]);
+	} else if (iflag) {
+		if ((image = realpath(argv[0], NULL)) == NULL)
+			err(EXIT_FAILURE, "realpath(%s)", argv[0]);
 	}
 	if (mflag)
 		EXEC(dsbmc_mount_async(dev, cb));
@@ -213,7 +220,13 @@ main(int argc, char *argv[])
 		EXEC(dsbmc_eject_async(dev, fflag, cb));
 	else if (vflag)
 		EXEC(dsbmc_set_speed_async(dev, speed, cb));
-	else
+	else if (iflag) {
+		if (stat(image, &sb) == -1)
+			err(EXIT_FAILURE, "stat(%s)", image);
+		if (!S_ISREG(sb.st_mode))
+			errx(EXIT_FAILURE, "%s is not a regular file", image);
+		EXEC(dsbmc_mdattach_async(image, cb));
+	} else
 		usage();
 	for (; dsbmc_fetch_event(&e) != -1; usleep(500)) {
 		for (i = 0; i < sizeof(seq) - 1; i++)
@@ -625,6 +638,7 @@ usage()
 	PU("-a [-U <time>] [[-L <event> <command> [arg ...] ; [-L ...]]");
 	PU("{{-e | -u} [-f] | {-m | -s | -v <speed>}} <device>");
 	PU("{-e | -u} [-f] <mount point>");
+	PU("-i <disk image>");
 	PU("-l");
 	PU("[-h]");
 	exit(EXIT_FAILURE);
