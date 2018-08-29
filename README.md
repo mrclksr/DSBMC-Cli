@@ -32,6 +32,9 @@ mount, unmount and eject these.
 {**-e** | **-u**}
 *&lt;mount point&gt;*  
 **dsbmc-cli**
+**-i**
+*&lt;disk image&gt;*  
+**dsbmc-cli**
 **-l**  
 **dsbmc-cli**
 \[**-h**]
@@ -110,6 +113,11 @@ mount, unmount and eject these.
 > *device*
 > or the device mounted on
 > *&lt;mount point&gt;*
+
+**-i** *&lt;disk image&gt;*
+
+> Create a memory disk to access the given
+> *disk image*.
 
 **-l**
 
