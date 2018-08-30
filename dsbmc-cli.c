@@ -660,6 +660,7 @@ help()
 	PO("-e <device>", "Eject <device>");
 	PO("-e <mount point>", "Eject the device mounted on <mount point>");
 	PO("-f", "Force operation even if device is busy.");
+	PO("-i <disk image>", "Create a memory disk to access the given image.");
 	PO("-l", "List available devices supported by DSBMD.");
 	PO("-m <device>", "Mount <device>");
 	PO("-s <device>", "Query storage capacity of <device>");
