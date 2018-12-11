@@ -581,6 +581,8 @@ do_listen(bool automount, bool autounmount)
 			    "-a' is already running.");
 		}
 		for (i = 0; i < dsbmc_get_devlist(dh, &dls); i++) {
+			if (!(dls[i]->cmds & DSBMC_CMD_MOUNT))
+				continue;
 			if (!dls[i]->mounted) {
 				do_mount(dls[i]);
 				exec_event_command(EVENT_MOUNT, dls[i]);
@@ -602,7 +604,8 @@ do_listen(bool automount, bool autounmount)
 			switch (e.type) {
 			case DSBMC_EVENT_ADD_DEVICE:
 				exec_event_command(EVENT_ADD, e.dev);
-				if (automount) {
+				if (automount &&
+				    (e.dev->cmds & DSBMC_CMD_MOUNT)) {
 					do_mount(e.dev);
 					exec_event_command(EVENT_MOUNT, e.dev);
 				}
@@ -612,8 +615,7 @@ do_listen(bool automount, bool autounmount)
 			case DSBMC_EVENT_DEL_DEVICE:
 				exec_event_command(EVENT_REMOVE, e.dev);
 				if (!autounmount)
-					dsbmc_free_dev(dh, e.dev);
-				
+					dsbmc_free_dev(dh, e.dev);	
 				break;
 			case DSBMC_EVENT_MOUNT:
 				exec_event_command(EVENT_MOUNT, e.dev);
