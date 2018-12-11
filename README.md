@@ -149,7 +149,7 @@ mount, unmount and eject these.
 
 # EXAMPLES
 
-## 1 Automounting
+## Automounting
 
 Just execute
 'dsbmc-cli -a'
@@ -163,24 +163,31 @@ the
 **-U**
 flag.
 
-## 1.1 Using dsbmc-cli together with fb-unmount
+## Events
 
-If you're using Fluxbox, you might be interested in using the
-script
-'*fb-unmount*',
-which automatically adds entries of mounted devices to
-your Fluxbox menu. This allows you to unmount and eject devices by clicking
-the corresponding menu entry:
+	$ dsbmc-cli -L mount printf "%%s was mounted on %%s\n" %d %m ';'
 
-Get the script from
-[https://github.com/mrclksr/fb-unmount](https://github.com/mrclksr/fb-unmount),
-save it in
-*~/bin*,
-and make it executable (chmod u+x ~/bin/fb-unmount).
-Finally add the following line(s) to your
-*~/.fluxbox/startup*:
+This command listens for
+*mount*
+events, and executes the
+*printf*
+command, where %d and %m are replaced by the device name and mount point.
 
-	dsbmc-cli -a -L mount fb-unmount -m %d %m ';' \
-	    -L unmount fb-unmount -u %d ';'&
-	
+	$ dsbmc-cli -a -L add sh -c 'case %t in audiocd) vlc cdda://%d&;; dvd) vlc dvd://%d&;; esac' ';' -L mount sh -c 'Thunar %m&' ';'
+
+In this example,
+**dsbmc-cli**
+auto mounts devices, and listens for
+*add*
+and
+*mount*
+events. If an audio CD or a DVD was inserted, the command
+*vlc cdda://%d&*
+or
+*vlc dvd://%d&*
+is executed, respectively. If a device was mounted,
+**dsbmc-cli**
+executes the command
+*Thunar %m&*,
+where %m is replaced by the mount point.
 
