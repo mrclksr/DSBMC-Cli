@@ -131,5 +131,27 @@ Set the reading speed of the given CD/DVD
 .Ar device .
 .Sh EXAMPLES
 .Dl $ dsbmc-cli -L mount printf \(dq%%s was mounted on %%s\en\(dq %d %m ';'
-.Dl $ dsbmc-cli -L add echo \(dqDevice %d of type %t was added.\(dq ';'
+
+This command listens for
+.Em mount
+events, and executes the
+.Em printf
+command, where %d and %m are replaced by the device name and mount point.
+
+.Dl $ dsbmc-cli -a -L add sh -c 'case %t in audiocd) vlc cdda://%d&;; dvd) vlc dvd://%d&;; esac' ';' -L mount sh -c 'Thunar %m&' ';'
+
+In this example,
+.Nm
+auto mounts devices, and listens for
+.Ar add
+and
+.Ar mount
+events. If an audio CD or a DVD was inserted, the command
+.Em "vlc cdda://%d&"
+or
+.Em "vlc dvd://%d&"
+is executed, respectively. If a device was mounted,
+.Nm
+executes the command
+.Em "Thunar %m&"
 
