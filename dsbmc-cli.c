@@ -43,9 +43,9 @@
 
 #define PATH_LOCKF ".dsbmc-cli.lock"
 
-#define EXEC(f)	do {							  \
+#define EXEC(dh, f) do {						  \
 	if (f == -1)							  \
-		errx(EXIT_FAILURE, "%s", dsbmc_errstr());		  \
+		errx(EXIT_FAILURE, "%s", dsbmc_errstr(dh));		  \
 } while (0)
 
 #define P(s, m)	do {							  \
@@ -101,6 +101,7 @@ static const dsbmc_dev_t *dev_from_mnt(const char *mnt);
 
 static int	 ntids;
 static int	 unmount_time;
+static dsbmc_t	 *dh;
 static pthread_t tids[64];
 static pthread_mutex_t mutex;
 
@@ -173,8 +174,10 @@ main(int argc, char *argv[])
 		usage();
 	if (!!mflag + !!uflag + !!eflag + !!sflag + !!vflag + !!iflag > 1)
 		usage();
-	if (dsbmc_connect() == -1)
-		errx(EXIT_FAILURE, "%s", dsbmc_errstr());
+	if ((dh = dsbmc_alloc_handle()) == NULL)
+		err(EXIT_FAILURE, "dsbmc_alloc_handle()");
+	if (dsbmc_connect(dh) == -1)
+		errx(EXIT_FAILURE, "%s", dsbmc_errstr(dh));
 	if (lflag)
 		list();
 	else if (aflag)
@@ -200,7 +203,7 @@ main(int argc, char *argv[])
 			usage();
 		} else
 			dev = NULL;
-		for (i = 0; i < dsbmc_get_devlist(&dls) && dev == NULL; i++) {
+		for (i = 0; i < dsbmc_get_devlist(dh, &dls) && dev == NULL; i++) {
 			if (strcmp(argv[0], dls[i]->dev) == 0)
 				dev = dls[i];
 		}
@@ -211,29 +214,29 @@ main(int argc, char *argv[])
 			err(EXIT_FAILURE, "realpath(%s)", argv[0]);
 	}
 	if (mflag)
-		EXEC(dsbmc_mount_async(dev, cb));
+		EXEC(dh, dsbmc_mount_async(dh, dev, cb));
 	else if (sflag)
-		EXEC(dsbmc_size_async(dev, size_cb));
+		EXEC(dh, dsbmc_size_async(dh, dev, size_cb));
 	else if (uflag)
-		EXEC(dsbmc_unmount_async(dev, fflag, cb));
+		EXEC(dh, dsbmc_unmount_async(dh, dev, fflag, cb));
 	else if (eflag)
-		EXEC(dsbmc_eject_async(dev, fflag, cb));
+		EXEC(dh, dsbmc_eject_async(dh, dev, fflag, cb));
 	else if (vflag)
-		EXEC(dsbmc_set_speed_async(dev, speed, cb));
+		EXEC(dh, dsbmc_set_speed_async(dh, dev, speed, cb));
 	else if (iflag) {
 		if (stat(image, &sb) == -1)
 			err(EXIT_FAILURE, "stat(%s)", image);
 		if (!S_ISREG(sb.st_mode))
 			errx(EXIT_FAILURE, "%s is not a regular file", image);
-		EXEC(dsbmc_mdattach_async(image, cb));
+		EXEC(dh, dsbmc_mdattach_async(dh, image, cb));
 	} else
 		usage();
-	for (; dsbmc_fetch_event(&e) != -1; usleep(500)) {
+	for (; dsbmc_fetch_event(dh, &e) != -1; usleep(500)) {
 		for (i = 0; i < sizeof(seq) - 1; i++)
 			(void)fprintf(stderr, "\r%c", seq[i]);
 	}
-	if (dsbmc_get_err(NULL))
-		errx(EXIT_FAILURE, "%s", dsbmc_errstr());
+	if (dsbmc_get_err(dh, NULL))
+		errx(EXIT_FAILURE, "%s", dsbmc_errstr(dh));
 	return (EXIT_SUCCESS);
 }
 
@@ -378,7 +381,7 @@ dev_from_mnt(const char *mnt)
 			return (NULL);
 		err(EXIT_FAILURE, "realpath(%s)", mnt);
 	}
-	for (i = 0; i < dsbmc_get_devlist(&dls); i++) {
+	for (i = 0; i < dsbmc_get_devlist(dh, &dls); i++) {
 		if (!dls[i]->mounted)
 			continue;
 		if (realpath(dls[i]->mntpt, rpath2) == NULL)
@@ -428,7 +431,7 @@ list()
 	int i;
 	const dsbmc_dev_t **devlist;
 
-	for (i = 0; i < dsbmc_get_devlist(&devlist); putchar('\n'), i++) {
+	for (i = 0; i < dsbmc_get_devlist(dh, &devlist); putchar('\n'), i++) {
 		P(devlist[i], dev);
 		P(devlist[i], volid);
 		P(devlist[i], fsname);
@@ -443,9 +446,9 @@ do_mount(const dsbmc_dev_t *dev)
 {
 	int ret;
 
-	if ((ret = dsbmc_mount(dev)) == -1) {
+	if ((ret = dsbmc_mount(dh, dev)) == -1) {
 		warnx("Error: dsbmc_mount(%s): %s", dev->dev,
-		    dsbmc_errstr());
+		    dsbmc_errstr(dh));
 	} else if (ret > 0) {
 		warnx("Mouting of %s failed: %s", dev->dev,
 		    dsbmc_errcode_to_str(ret));
@@ -504,7 +507,7 @@ auto_unmount(void *arg)
 	const dsbmc_dev_t *dev, **dls;
 
 	id  = *((int *)arg); free(arg);
-	for (dev = NULL, i = 0; i < dsbmc_get_devlist(&dls); i++) {
+	for (dev = NULL, i = 0; i < dsbmc_get_devlist(dh, &dls); i++) {
 		if (dls[i]->id == id) {
 			dev = dls[i]; break;
 		}
@@ -527,14 +530,14 @@ auto_unmount(void *arg)
 		} while (rem != 0);
 		if (dev->removed || !dev->mounted) {
 			if (dev->removed)
-				dsbmc_free_dev(dev);
+				dsbmc_free_dev(dh, dev);
 			pdie();
 		}
-		if ((ret = dsbmc_unmount(dev, false)) == -1) {
+		if ((ret = dsbmc_unmount(dh, dev, false)) == -1) {
 			if (ret & DSBMC_ERR_FATAL)
-				err(EXIT_FAILURE, "%s", dsbmc_errstr());
+				err(EXIT_FAILURE, "%s", dsbmc_errstr(dh));
 			else
-				warnx("%s", dsbmc_errstr());
+				warnx("%s", dsbmc_errstr(dh));
 		} else if (ret > 0) {
 			if (ret != EBUSY && ret != DSBMC_ERR_DEVICE_BUSY)
 				warnx("%s", dsbmc_errcode_to_str(ret));
@@ -577,7 +580,7 @@ do_listen(bool automount, bool autounmount)
 			errx(EXIT_FAILURE, "Another instance of 'dsbmc-cli " \
 			    "-a' is already running.");
 		}
-		for (i = 0; i < dsbmc_get_devlist(&dls); i++) {
+		for (i = 0; i < dsbmc_get_devlist(dh, &dls); i++) {
 			if (!dls[i]->mounted) {
 				do_mount(dls[i]);
 				exec_event_command(EVENT_MOUNT, dls[i]);
@@ -587,7 +590,7 @@ do_listen(bool automount, bool autounmount)
 			}
 		}
 	}
-	for (s = dsbmc_get_fd();;) {
+	for (s = dsbmc_get_fd(dh);;) {
 		FD_ZERO(&fdset); FD_SET(s, &fdset);
 
 		if (select(s + 1, &fdset, 0, 0, 0) == -1) {
@@ -595,7 +598,7 @@ do_listen(bool automount, bool autounmount)
 				err(EXIT_FAILURE, "select()");
 			continue;
 		}
-		while (dsbmc_fetch_event(&e) > 0) {
+		while (dsbmc_fetch_event(dh, &e) > 0) {
 			switch (e.type) {
 			case DSBMC_EVENT_ADD_DEVICE:
 				exec_event_command(EVENT_ADD, e.dev);
@@ -609,7 +612,7 @@ do_listen(bool automount, bool autounmount)
 			case DSBMC_EVENT_DEL_DEVICE:
 				exec_event_command(EVENT_REMOVE, e.dev);
 				if (!autounmount)
-					dsbmc_free_dev(e.dev);
+					dsbmc_free_dev(dh, e.dev);
 				
 				break;
 			case DSBMC_EVENT_MOUNT:
@@ -626,8 +629,8 @@ do_listen(bool automount, bool autounmount)
 				break;
 			}
 		}
-		if (dsbmc_get_err(NULL) & DSBMC_ERR_LOST_CONNECTION)
-			errx(EXIT_FAILURE, "Lost connection %s", dsbmc_errstr());
+		if (dsbmc_get_err(dh, NULL) & DSBMC_ERR_LOST_CONNECTION)
+			errx(EXIT_FAILURE, "Lost connection %s", dsbmc_errstr(dh));
 	}
 }
 
