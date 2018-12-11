@@ -137,7 +137,7 @@ Set the reading speed of the given CD/DVD
 .Ar device .
 .El
 .Sh EXAMPLES
-.Ss 1 Automounting
+.Ss Automounting
 Just execute
 .Sq dsbmc-cli -a
 or, if you wish, add the command
@@ -149,23 +149,30 @@ If you don't want to manually unmount your devices, you can in addition use
 the
 .Fl U
 flag.
-.Ss 1.1 Using dsbmc-cli together with fb-unmount
-If you're using Fluxbox, you might be interested in using the
-script
-.Sq Em fb-unmount ,
-which automatically adds entries of mounted devices to
-your Fluxbox menu. This allows you to unmount and eject devices by clicking
-the corresponding menu entry:
-.Pp
-Get the script from
-.Lk https://github.com/mrclksr/fb-unmount ,
-save it in
-.Em ~/bin ,
-and make it executable (chmod u+x ~/bin/fb-unmount).
-Finally add the following line(s) to your
-.Em ~/.fluxbox/startup :
-.Bd -literal
-dsbmc-cli -a -L mount fb-unmount -m %d %m ';' \\
-    -L unmount fb-unmount -u %d ';'&
-.Be
+.Ss Events
+.Dl $ dsbmc-cli -L mount printf \(dq%%s was mounted on %%s\en\(dq %d %m ';'
+
+This command listens for
+.Em mount
+events, and executes the
+.Em printf
+command, where %d and %m are replaced by the device name and mount point.
+
+.Dl $ dsbmc-cli -a -L add sh -c 'case %t in audiocd) vlc cdda://%d&;; dvd) vlc dvd://%d&;; esac' ';' -L mount sh -c 'Thunar %m&' ';'
+
+In this example,
+.Nm
+auto mounts devices, and listens for
+.Ar add
+and
+.Ar mount
+events. If an audio CD or a DVD was inserted, the command
+.Em "vlc cdda://%d&"
+or
+.Em "vlc dvd://%d&"
+is executed, respectively. If a device was mounted,
+.Nm
+executes the command
+.Em "Thunar %m&",
+where %m is replaced by the mount point.
 
