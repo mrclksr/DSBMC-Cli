@@ -99,11 +99,11 @@ static void *auto_unmount(void *arg);
 static char *dtype_to_name(uint8_t type);
 static const dsbmc_dev_t *dev_from_mnt(const char *mnt);
 
-static int	 ntids;
-static int	 unmount_time;
+static size_t	 unmount_time;
+static size_t	 ntids;
 static dsbmc_t	 *dh;
-static pthread_t tids[64];
-static pthread_mutex_t mutex;
+static pthread_t *tids;
+static pthread_mutex_t tl_mtx, dh_mtx;
 
 int
 main(int argc, char *argv[])
@@ -271,7 +271,7 @@ add_event_command(char **argv, int *argskip)
 			break;
 		}
 	}
-	if (--n < 2 || !terminated) {
+	if (--n < 1 || !terminated) {
 		if (!terminated)
 			warnx("Missing terminating ';'");
 		usage();
@@ -466,22 +466,21 @@ remove_thread(pthread_t tid)
 {
 	int i;
 
-	(void)pthread_mutex_lock(&mutex);
+	(void)pthread_mutex_lock(&tl_mtx);
 	for (i = 0; i < ntids && tids[i] != tid; i++)
 		;
 	for (; i < ntids - 1; i++)
 		tids[i] = tids[i + 1];
 	ntids--;
-	(void)pthread_mutex_unlock(&mutex);
+	(void)pthread_mutex_unlock(&tl_mtx);
 }
 
 static void
 pdie()
 {
-
+	(void)pthread_mutex_unlock(&dh_mtx);
 	remove_thread(pthread_self());
 	pthread_exit(NULL);
-
 }
 
 static void
@@ -489,14 +488,17 @@ add_unmount_thread(const dsbmc_dev_t *dev)
 {
 	int *id;
 
-	(void)pthread_mutex_lock(&mutex);
+	(void)pthread_mutex_lock(&tl_mtx);
+	tids = realloc(tids, sizeof(pthread_t) * (ntids + 1));
+	if (tids == NULL)
+		err(EXIT_FAILURE, "realloc()");
 	if ((id = malloc(sizeof(int))) == NULL)
 		err(EXIT_FAILURE, "malloc()");
 	*id = dev->id;
 	if (pthread_create(&tids[ntids], NULL, auto_unmount, id) != 0)
 		err(EXIT_FAILURE, "pthread_create()");
 	(void)pthread_detach(tids[ntids++]);
-	(void)pthread_mutex_unlock(&mutex);
+	(void)pthread_mutex_unlock(&tl_mtx);
 }
 
 static void *
@@ -528,6 +530,8 @@ auto_unmount(void *arg)
 				}
 			}
 		} while (rem != 0);
+
+		(void)pthread_mutex_lock(&dh_mtx);
 		if (dev->removed || !dev->mounted) {
 			if (dev->removed)
 				dsbmc_free_dev(dh, dev);
@@ -545,6 +549,7 @@ auto_unmount(void *arg)
 			exec_event_command(EVENT_UNMOUNT, dev);
 			pdie();
 		}
+		(void)pthread_mutex_unlock(&dh_mtx);
 	}
 }
 
@@ -561,7 +566,9 @@ do_listen(bool automount, bool autounmount)
 	if (autounmount) {
 		if (signal(SIGUSR1, sighandler) == SIG_ERR)
 			err(EXIT_FAILURE, "signal()");
-		if (pthread_mutex_init(&mutex, NULL) == -1)
+		if (pthread_mutex_init(&tl_mtx, NULL) == -1)
+			err(EXIT_FAILURE, "pthread_mutex_init()");
+		if (pthread_mutex_init(&dh_mtx, NULL) == -1)
 			err(EXIT_FAILURE, "pthread_mutex_init()");
 	}
 	if (automount) {
@@ -580,6 +587,7 @@ do_listen(bool automount, bool autounmount)
 			errx(EXIT_FAILURE, "Another instance of 'dsbmc-cli " \
 			    "-a' is already running.");
 		}
+		(void)pthread_mutex_lock(&dh_mtx);
 		for (i = 0; i < dsbmc_get_devlist(dh, &dls); i++) {
 			if (!(dls[i]->cmds & DSBMC_CMD_MOUNT))
 				continue;
@@ -591,6 +599,7 @@ do_listen(bool automount, bool autounmount)
 				add_unmount_thread(dls[i]);
 			}
 		}
+		(void)pthread_mutex_unlock(&dh_mtx);
 	}
 	for (s = dsbmc_get_fd(dh);;) {
 		FD_ZERO(&fdset); FD_SET(s, &fdset);
@@ -600,6 +609,7 @@ do_listen(bool automount, bool autounmount)
 				err(EXIT_FAILURE, "select()");
 			continue;
 		}
+		(void)pthread_mutex_lock(&dh_mtx);
 		while (dsbmc_fetch_event(dh, &e) > 0) {
 			switch (e.type) {
 			case DSBMC_EVENT_ADD_DEVICE:
@@ -631,8 +641,11 @@ do_listen(bool automount, bool autounmount)
 				break;
 			}
 		}
-		if (dsbmc_get_err(dh, NULL) & DSBMC_ERR_LOST_CONNECTION)
-			errx(EXIT_FAILURE, "Lost connection %s", dsbmc_errstr(dh));
+		if (dsbmc_get_err(dh, NULL) & DSBMC_ERR_LOST_CONNECTION) {
+			errx(EXIT_FAILURE, "Lost connection %s",
+			    dsbmc_errstr(dh));
+		}
+		(void)pthread_mutex_unlock(&dh_mtx);
 	}
 }
 
