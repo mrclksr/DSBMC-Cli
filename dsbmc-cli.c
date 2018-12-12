@@ -274,6 +274,8 @@ add_event_command(char **argv, int *argskip)
 	if (--n < 1 || !terminated) {
 		if (!terminated)
 			warnx("Missing terminating ';'");
+		else
+			warnx("Command not defined");
 		usage();
 	}
 	evcmds[i].args = argv + 1; evcmds[i].argc = n; (*argskip) += n;
