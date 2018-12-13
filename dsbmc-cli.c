@@ -553,7 +553,7 @@ do_listen(bool automount, bool autounmount)
 	fd_set	      fdset;
 	dsbmc_event_t e;
 	struct passwd *pw;
-	const dsbmc_dev_t **dls;
+	const dsbmc_dev_t *dev;
 
 	if (autounmount) {
 		if (signal(SIGUSR1, sighandler) == SIG_ERR)
@@ -580,16 +580,15 @@ do_listen(bool automount, bool autounmount)
 			    "-a' is already running.");
 		}
 		(void)pthread_mutex_lock(&dh_mtx);
-		for (i = 0; i < dsbmc_get_devlist(dh, &dls); i++) {
-			if (!(dls[i]->cmds & DSBMC_CMD_MOUNT))
+		for (i = 0; (dev = dsbmc_next_dev(dh, &i, false)) != NULL;) {
+			if (!(dev->cmds & DSBMC_CMD_MOUNT))
 				continue;
-			if (!dls[i]->mounted) {
-				do_mount(dls[i]);
-				exec_event_command(EVENT_MOUNT, dls[i]);
-				if (!autounmount)
-					continue;
-				add_unmount_thread(dls[i]);
-			}
+			if (dev->mounted)
+				continue;
+			do_mount(dev);
+			exec_event_command(EVENT_MOUNT, dev);
+			if (autounmount)
+				add_unmount_thread(dev);
 		}
 		(void)pthread_mutex_unlock(&dh_mtx);
 	}
