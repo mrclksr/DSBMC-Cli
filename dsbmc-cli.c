@@ -115,7 +115,7 @@ main(int argc, char *argv[])
 	const char    seq[] = "-|/-\\|/";
 	struct stat   sb;
 	dsbmc_event_t e;
-	const dsbmc_dev_t *dev, **dls;
+	const dsbmc_dev_t *dev;
 
 	fflag = lflag = sflag = vflag = Uflag = false;
 	Lflag = aflag = eflag = mflag = uflag = iflag = false;
@@ -201,13 +201,7 @@ main(int argc, char *argv[])
 		} else if (!S_ISCHR(sb.st_mode)) {
 			warnx("%s is not a character special file", argv[0]);
 			usage();
-		} else
-			dev = NULL;
-		for (i = 0; i < dsbmc_get_devlist(dh, &dls) && dev == NULL; i++) {
-			if (strcmp(argv[0], dls[i]->dev) == 0)
-				dev = dls[i];
-		}
-		if (dev == NULL)
+		} else if ((dev = dsbmc_dev_from_name(dh, argv[0])) == NULL)
 			errx(EXIT_FAILURE, "No such device '%s'", argv[0]);
 	} else if (iflag) {
 		if ((image = realpath(argv[0], NULL)) == NULL)
@@ -376,20 +370,20 @@ dev_from_mnt(const char *mnt)
 {
 	int   i;
 	char  rpath1[PATH_MAX], rpath2[PATH_MAX];
-	const dsbmc_dev_t **dls;
+	const dsbmc_dev_t *dev;
 
 	if (realpath(mnt, rpath1) == NULL) {
 		if (errno == ENOENT)
 			return (NULL);
 		err(EXIT_FAILURE, "realpath(%s)", mnt);
 	}
-	for (i = 0; i < dsbmc_get_devlist(dh, &dls); i++) {
-		if (!dls[i]->mounted)
+	for (i = 0; (dev = dsbmc_next_dev(dh, &i, false)) != NULL;) {
+		if (!dev->mounted)
 			continue;
-		if (realpath(dls[i]->mntpt, rpath2) == NULL)
-			err(EXIT_FAILURE, "realpath(%s)", dls[i]->mntpt);
+		if (realpath(dev->mntpt, rpath2) == NULL)
+			err(EXIT_FAILURE, "realpath(%s)", dev->mntpt);
 		if (strcmp(rpath1, rpath2) == 0)
-			return (dls[i]);
+			return (dev);
 	}
 	return (NULL);
 }
@@ -431,14 +425,14 @@ static void
 list()
 {
 	int i;
-	const dsbmc_dev_t **devlist;
+	const dsbmc_dev_t *dev;
 
-	for (i = 0; i < dsbmc_get_devlist(dh, &devlist); putchar('\n'), i++) {
-		P(devlist[i], dev);
-		P(devlist[i], volid);
-		P(devlist[i], fsname);
-		P(devlist[i], mntpt);
-		(void)printf(":type=%s", dtype_to_name(devlist[i]->type));
+	for (i = 0; (dev = dsbmc_next_dev(dh, &i, false)) != NULL;) {
+		P(dev, dev);
+		P(dev, volid);
+		P(dev, fsname);
+		P(dev, mntpt);
+		(void)printf(":type=%s\n", dtype_to_name(dev->type));
 	}
 	exit(EXIT_SUCCESS);
 }
