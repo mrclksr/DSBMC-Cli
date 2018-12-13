@@ -506,16 +506,12 @@ add_unmount_thread(const dsbmc_dev_t *dev)
 static void *
 auto_unmount(void *arg)
 {
-	int	     ret, id, i;
+	int	     ret, id;
 	unsigned int rem;
-	const dsbmc_dev_t *dev, **dls;
+	const dsbmc_dev_t *dev;
 
 	id  = *((int *)arg); free(arg);
-	for (dev = NULL, i = 0; i < dsbmc_get_devlist(dh, &dls); i++) {
-		if (dls[i]->id == id) {
-			dev = dls[i]; break;
-		}
-	}
+	dev = dsbmc_dev_from_id(dh, id);
 	if (dev == NULL)
 		pdie();
 	for (;;) {
