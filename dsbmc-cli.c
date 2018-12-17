@@ -328,6 +328,12 @@ exec_event_command(int ev, const dsbmc_dev_t *dev)
 			p++;
 		}
 		buf[j] = '\0';
+		if (*p != '\0') {
+			errx(EXIT_FAILURE,
+			    "Error: Lenght of command argument %d, " \
+			    "'%s ...', exceeds the limit of %lu bytes!",
+			    i + 1, buf, sizeof(buf) - 1);
+		}
 		if ((args[i] = strdup(buf)) == NULL)
 			err(EXIT_FAILURE, "strdup()");
 	}
