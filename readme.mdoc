@@ -21,6 +21,7 @@ mount, unmount and eject these.
 .br
 .Nm
 .Fl a
+.Op Fl b Ar dev1,dev2,...
 .Bo
 .Fl U Ar time
 .Bc
@@ -29,6 +30,7 @@ mount, unmount and eject these.
 \;
 .Op Fl L Ar ...
 .Bc
+.br
 .Nm
 .Brq Bro Fl e | u Brc Bo Fl f Bc | Bro Fl m | s | u | v Ar speed Brc
 .Ar device
@@ -109,6 +111,10 @@ option can be specified for each event. If
 automounts a device, it executes the command defined for the
 .Em mount
 event.
+.It Fl b
+A comma-separated list of devices to ignore if the
+.Fl a
+option is given.
 .It Fl e Ar device , Fl e Ar <mount point>
 Eject the given
 .Ar device

@@ -12,6 +12,7 @@
 .Op Fl L Ar ...
 .Nm
 .Fl a
+.Op Fl b Ar dev1,dev2,...
 .Bo
 .Fl U Ar time
 .Bc
@@ -103,6 +104,10 @@ option can be specified for each event. If
 automounts a device, it executes the command defined for the
 .Em mount
 event.
+.It Fl b
+A comma-separated list of devices to ignore if the
+.Fl a
+option is given.
 .It Fl e Ar device , Fl e Ar <mount point>
 Eject the given
 .Ar device

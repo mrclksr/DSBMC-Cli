@@ -41,7 +41,8 @@
 
 #include "libdsbmc/libdsbmc.h"
 
-#define PATH_LOCKF ".dsbmc-cli.lock"
+#define MAX_BLISTSZ 256
+#define PATH_LOCKF  ".dsbmc-cli.lock"
 
 #define EXEC(dh, f) do {						  \
 	if (f == -1)							  \
@@ -95,10 +96,13 @@ static void sighandler(int signo);
 static void pdie(void);
 static void remove_thread(pthread_t tid);
 static void add_unmount_thread(const dsbmc_dev_t *dev);
+static bool blacklisted(const char *);
 static void *auto_unmount(void *arg);
 static char *dtype_to_name(uint8_t type);
 static const dsbmc_dev_t *dev_from_mnt(const char *mnt);
 
+static char	 *blist[MAX_BLISTSZ];
+static size_t	 blistsz;
 static size_t	 unmount_time;
 static size_t	 ntids;
 static dsbmc_t	 *dh;
@@ -109,17 +113,17 @@ int
 main(int argc, char *argv[])
 {
 	int	      i, ch, speed;
-	bool	      sflag, vflag, eflag, fflag, Uflag;
+	bool	      sflag, vflag, eflag, fflag, bflag, Uflag;
 	bool	      Lflag, aflag, mflag, uflag, lflag, iflag;
-	char	      *image;
+	char	      *image, *p;
 	const char    seq[] = "-|/-\\|/";
 	struct stat   sb;
 	dsbmc_event_t e;
 	const dsbmc_dev_t *dev;
 
-	fflag = lflag = sflag = vflag = Uflag = false;
+	fflag = lflag = sflag = vflag = bflag = Uflag = false;
 	Lflag = aflag = eflag = mflag = uflag = iflag = false;
-	while ((ch = getopt(argc, argv, "L:U:afimusehv:l")) != -1) {
+	while ((ch = getopt(argc, argv, "L:U:ab:fimusehv:l")) != -1) {
 		switch (ch) {
 		case 'L':
 			Lflag = true;
@@ -131,6 +135,15 @@ main(int argc, char *argv[])
 			break;
 		case 'a':
 			aflag = true;
+			break;
+		case 'b':
+			bflag = true;
+			for (p = optarg;
+			    (p = strtok(p, ",")) != NULL &&
+			    blistsz < MAX_BLISTSZ; p = NULL)
+				blist[blistsz++] = p;
+			if (blistsz >= MAX_BLISTSZ)
+				warnx("MAX_BLISTSZ (%d) exceeded", MAX_BLISTSZ);
 			break;
 		case 'f':
 			fflag = true;
@@ -173,6 +186,8 @@ main(int argc, char *argv[])
 	if ((aflag || Lflag) && (mflag || eflag || uflag || sflag || vflag))
 		usage();
 	if (!!mflag + !!uflag + !!eflag + !!sflag + !!vflag + !!iflag > 1)
+		usage();
+	if (bflag && !aflag)
 		usage();
 	if ((dh = dsbmc_alloc_handle()) == NULL)
 		err(EXIT_FAILURE, "dsbmc_alloc_handle()");
@@ -415,6 +430,25 @@ dtype_to_name(uint8_t type)
 	return (empty);
 }
 
+static bool
+blacklisted(const char *dev)
+{
+	int  i;
+	char *path  = NULL;
+	bool listed = false;
+
+	for (i = 0; i < blistsz && !listed; i++) {
+		if ((path = realpath(blist[i], NULL)) == NULL) {
+			warn("realpath(%s)", blist[i]);
+			continue;
+		}
+		if (strcmp(dev, path) == 0)
+			listed = true;
+		free(path);
+	}
+	return (listed);
+}
+
 static void
 cb(int code, const dsbmc_dev_t *d)
 {
@@ -599,6 +633,8 @@ do_listen(bool automount, bool autounmount)
 				continue;
 			if (dev->mounted)
 				continue;
+			if (blacklisted(dev->dev))
+				continue;
 			do_mount(dev);
 			exec_event_command(EVENT_MOUNT, dev);
 			if (autounmount)
@@ -658,7 +694,8 @@ static void
 usage()
 {
 	PU("!-L <event> <command> [arg ...] ; [ -L ...]");
-	PU("-a [-U <time>] [[-L <event> <command> [arg ...] ; [-L ...]]");
+	PU("-a [-b dev1,dev2,...] [-U <time>] [[-L <event> <command> " \
+	    "[arg ...] ; [-L ...]]");
 	PU("{{-e | -u} [-f] | {-m | -s | -v <speed>}} <device>");
 	PU("{-e | -u} [-f] <mount point>");
 	PU("-i <disk image>");
