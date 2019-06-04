@@ -21,10 +21,11 @@ mount, unmount and eject these.
 \[**-L** *...*]  
 **dsbmc-cli**
 **-a**
+\[**-b** *dev1,dev2,...*]
 \[**-U** *time*]
 \[\[**-L** *event* *command* \[*arg ...*]]
 &#59;
-\[**-L** *...*]]
+\[**-L** *...*]]  
 **dsbmc-cli**
 {{**-e** | **-u**} \[**-f**] | {**-m** | **-s** | **-u** | **-v** *speed*}}
 *device*  
@@ -107,6 +108,12 @@ mount, unmount and eject these.
 > *mount*
 > event.
 
+**-b**
+
+> A comma-separated list of devices to ignore if the
+> **-a**
+> option is given.
+
 **-e** *device*, **-e** *&lt;mount point&gt;*
 
 > Eject the given
@@ -177,7 +184,7 @@ command, where %d and %m are replaced by the device name and mount point.
 
 In this example,
 **dsbmc-cli**
-auto mounts devices, and listens for
+automounts devices, and listens for
 *add*
 and
 *mount*
