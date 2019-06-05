@@ -441,7 +441,8 @@ blacklisted(const dsbmc_dev_t *dev)
 	path = NULL;
 	for (i = 0, listed = false; i < blistsz && !listed; i++) {
 		if (strncmp(blist[i], "volid=", 6) == 0) {
-			if (strcasecmp(dev->volid, blist[i] + 6) == 0)
+			if (dev->volid != NULL &&
+			    strcasecmp(dev->volid, blist[i] + 6) == 0)
 				return (true);
 		} else if (strncmp(blist[i], _PATH_DEV, strlen(_PATH_DEV)) != 0) {
 			buf = malloc(strlen(blist[i]) + sizeof(_PATH_DEV));
