@@ -111,10 +111,12 @@ option can be specified for each event. If
 automounts a device, it executes the command defined for the
 .Em mount
 event.
-.It Fl b
-A comma-separated list of devices to ignore if the
+.It Fl b Ar dev1,dev2,...
+A comma-separated list of devices and/or volume labels to ignore if the
 .Fl a
-option is given.
+option is given. Volume labels must be prefixed by
+.Dq volid= .
+Example: dsbmc-cli -a -b da0p2,volid=EFISYS,volid=TMP.
 .It Fl e Ar device , Fl e Ar <mount point>
 Eject the given
 .Ar device
