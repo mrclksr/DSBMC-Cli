@@ -732,6 +732,10 @@ help()
 	PO("-a [-L ...]",
 	    "Automount. Wait for devices added to the sys-");
 	PO("", "tem, and mount them.");
+	PO("-b dev1,dev2,...", "Define a comma-separated list of devices");
+	PO("", "and/or volume labels to ignore if the -a option");
+	PO("", "is given. Volume labels must be prefixed by");
+	PO("", "\"volid=\".");
 	PO("-e <device>", "Eject <device>");
 	PO("-e <mount point>", "Eject the device mounted on <mount point>");
 	PO("-f", "Force operation even if device is busy.");
