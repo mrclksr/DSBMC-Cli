@@ -108,11 +108,13 @@ mount, unmount and eject these.
 > *mount*
 > event.
 
-**-b**
+**-b** *dev1,dev2,...*
 
-> A comma-separated list of devices to ignore if the
+> A comma-separated list of devices and/or volume labels to ignore if the
 > **-a**
-> option is given.
+> option is given. Volume labels must be prefixed by
+> "volid=".
+> Example: dsbmc-cli -a -b da0p2,volid=EFISYS,volid=TMP.
 
 **-e** *device*, **-e** *&lt;mount point&gt;*
 
