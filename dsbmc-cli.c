@@ -32,6 +32,7 @@
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <paths.h>
 #include <pthread.h>
 #include <signal.h>
 #include <sys/select.h>
@@ -96,7 +97,7 @@ static void sighandler(int signo);
 static void pdie(void);
 static void remove_thread(pthread_t tid);
 static void add_unmount_thread(const dsbmc_dev_t *dev);
-static bool blacklisted(const char *);
+static bool blacklisted(const dsbmc_dev_t *dev);
 static void *auto_unmount(void *arg);
 static char *dtype_to_name(uint8_t type);
 static const dsbmc_dev_t *dev_from_mnt(const char *mnt);
@@ -431,20 +432,32 @@ dtype_to_name(uint8_t type)
 }
 
 static bool
-blacklisted(const char *dev)
+blacklisted(const dsbmc_dev_t *dev)
 {
 	int  i;
-	char *path  = NULL;
-	bool listed = false;
+	bool listed;
+	char *buf, *path;
 
-	for (i = 0; i < blistsz && !listed; i++) {
-		if ((path = realpath(blist[i], NULL)) == NULL) {
+	path = NULL;
+	for (i = 0, listed = false; i < blistsz && !listed; i++) {
+		if (strncmp(blist[i], "volid=", 6) == 0) {
+			if (strcasecmp(dev->volid, blist[i] + 6) == 0)
+				return (true);
+		} else if (strncmp(blist[i], _PATH_DEV, strlen(_PATH_DEV)) != 0) {
+			buf = malloc(strlen(blist[i]) + sizeof(_PATH_DEV));
+			if (buf == NULL)
+				err(EXIT_FAILURE, "malloc()");
+			(void)sprintf(buf, "%s%s", _PATH_DEV, blist[i]);
+			if ((path = realpath(buf, NULL)) == NULL)
+				warn("realpath(%s)", buf);
+			free(buf);
+		} else if ((path = realpath(blist[i], NULL)) == NULL)
 			warn("realpath(%s)", blist[i]);
-			continue;
+		if (path != NULL) {
+			if (strcmp(dev->dev, path) == 0)
+				listed = true;
+			free(path);
 		}
-		if (strcmp(dev, path) == 0)
-			listed = true;
-		free(path);
 	}
 	return (listed);
 }
@@ -633,7 +646,7 @@ do_listen(bool automount, bool autounmount)
 				continue;
 			if (dev->mounted)
 				continue;
-			if (blacklisted(dev->dev))
+			if (blacklisted(dev))
 				continue;
 			do_mount(dev);
 			exec_event_command(EVENT_MOUNT, dev);
@@ -656,7 +669,8 @@ do_listen(bool automount, bool autounmount)
 			case DSBMC_EVENT_ADD_DEVICE:
 				exec_event_command(EVENT_ADD, e.dev);
 				if (automount &&
-				    (e.dev->cmds & DSBMC_CMD_MOUNT)) {
+				    (e.dev->cmds & DSBMC_CMD_MOUNT) &&
+				    !blacklisted(e.dev)) {
 					do_mount(e.dev);
 					exec_event_command(EVENT_MOUNT, e.dev);
 				}
