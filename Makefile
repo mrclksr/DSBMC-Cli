@@ -16,6 +16,9 @@ ${PROGRAM}.1.gz: ${PROGRAM}.1
 	gzip -k ${PROGRAM}.1
 
 install: ${PROGRAM} ${PROGRAM}.1.gz
+	if [ ! -d ${DESTDIR}${MANDIR} ]; then \
+		mkdir -p ${DESTDIR}${MANDIR}; \
+	fi
 	${BSD_INSTALL_PROGRAM} ${PROGRAM} ${DESTDIR}${BINDIR}
 	${BSD_INSTALL_DATA} ${PROGRAM}.1.gz ${DESTDIR}${MANDIR}
 
